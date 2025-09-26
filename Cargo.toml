@@ -1,0 +1,24 @@
+[package]
+name = "cbz-edit"
+version = "0.1.0"
+edition = "2024"
+authors = ["ponurakk p0unrakg@int.pl"]
+description = "CBZ files manager"
+license = "MIT"
+readme = true
+repository = "https://github.com/ponurakk/cbz-edit"
+homepage = "https://github.com/ponurakk/cbz-edit"
+
+[dependencies]
+anyhow = "1.0.100"
+dirs = "6.0.0"
+image = "0.25.8"
+log = "0.4.28"
+quick-xml = { version = "0.38.3", features = ["serialize"] }
+ratatui = "0.29.0"
+ratatui-image = "8.0.1"
+serde = { version = "1.0.227", features = ["derive"] }
+simplelog = "0.12.2"
+tempfile = "3.23.0"
+walkdir = "2.5.0"
+zip = "5.1.1"
