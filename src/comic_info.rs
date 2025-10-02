@@ -1,14 +1,38 @@
 //! The `ComicInfo` struct used in CBZ files
 
+use std::fmt::Display;
+
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Debug, Default, Serialize)]
-enum ComicInfoManga {
+#[derive(Debug, Default, Serialize, Clone, Copy)]
+pub enum ComicInfoManga {
     #[default]
     Unknown,
     Yes,
     No,
     YesAndRightToLeft,
+}
+
+impl From<String> for ComicInfoManga {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "Yes" => Self::Yes,
+            "No" => Self::No,
+            "YesAndRightToLeft" => Self::YesAndRightToLeft,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl Display for ComicInfoManga {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Yes => write!(f, "Yes"),
+            Self::No => write!(f, "No"),
+            Self::YesAndRightToLeft => write!(f, "YesAndRightToLeft"),
+            Self::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for ComicInfoManga {
@@ -27,8 +51,8 @@ impl<'de> Deserialize<'de> for ComicInfoManga {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-enum ComicInfoAgeRating {
+#[derive(Debug, Default, Serialize, Clone, Copy)]
+pub enum ComicInfoAgeRating {
     #[default]
     Unknown,
     /// Kodomo
@@ -39,6 +63,30 @@ enum ComicInfoAgeRating {
     Mature17Plus,
     /// Hentai / Erotic
     AdultsOnly18Plus,
+}
+
+impl From<String> for ComicInfoAgeRating {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "Everyone" => Self::Everyone,
+            "Teen" => Self::Teen,
+            "Mature 17+" => Self::Mature17Plus,
+            "Adults Only 18+" => Self::AdultsOnly18Plus,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl Display for ComicInfoAgeRating {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Everyone => write!(f, "Everyone"),
+            Self::Teen => write!(f, "Teen"),
+            Self::Mature17Plus => write!(f, "Mature 17+"),
+            Self::AdultsOnly18Plus => write!(f, "Adults Only 18+"),
+            Self::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for ComicInfoAgeRating {
@@ -60,89 +108,89 @@ impl<'de> Deserialize<'de> for ComicInfoAgeRating {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-struct ComicInfo {
+pub struct ComicInfo {
     /// Title of the book.
-    title: String,
+    pub title: String,
 
     /// Title of the series the book is part of.
-    series: String,
+    pub series: String,
 
     /// Number of the book in the series.
     #[serde(skip_serializing_if = "Option::is_none")]
-    number: Option<u32>,
+    pub number: Option<f32>,
 
     /// Volume containing the book. Volume is a notion that is specific to US Comics, where the
     /// same series can have multiple volumes. Volumes can be referenced by number (1, 2, 3…) or by
     /// year (2018, 2020…).
     #[serde(skip_serializing_if = "Option::is_none")]
-    volume: Option<u32>,
+    pub volume: Option<u32>,
 
     /// A description or summary of the book.
     #[serde(skip_serializing_if = "Option::is_none")]
-    summary: Option<String>,
+    pub summary: Option<String>,
 
     /// Release year of the book.
     #[serde(skip_serializing_if = "Option::is_none")]
-    year: Option<u16>,
+    pub year: Option<u16>,
 
     /// Release month of the book.
     #[serde(skip_serializing_if = "Option::is_none")]
-    month: Option<u16>,
+    pub month: Option<u16>,
 
     /// Release day of the book.
     #[serde(skip_serializing_if = "Option::is_none")]
-    day: Option<u8>,
+    pub day: Option<u8>,
 
     /// Person or organization responsible for creating the scenario. (Multiple writers should be
     /// comma separated)
     #[serde(skip_serializing_if = "Option::is_none")]
-    writer: Option<String>,
+    pub writer: Option<String>,
 
     /// Person or organization responsible for drawing the art. (Multiple pencillers should be
     /// comma separated)
     #[serde(skip_serializing_if = "Option::is_none")]
-    penciller: Option<String>,
+    pub penciller: Option<String>,
 
     /// A person or organization who renders a text from one language into another, or from an
     /// older form of a language into the modern form. (Multiple translators should be comma
     /// separated)
     #[serde(skip_serializing_if = "Option::is_none")]
-    translator: Option<String>,
+    pub translator: Option<String>,
 
     /// A person or organization responsible for publishing, releasing, or issuing a resource.
     #[serde(skip_serializing_if = "Option::is_none")]
-    publisher: Option<String>,
+    pub publisher: Option<String>,
 
     /// Genre of the book or series. For example, Science-Fiction or Shonen.
     /// It is accepted that multiple values are comma separated.
     #[serde(skip_serializing_if = "Option::is_none")]
-    genre: Option<String>,
+    pub genre: Option<String>,
 
     /// Tags of the book or series. For example, ninja or school life.
     /// It is accepted that multiple values are comma separated.
     #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<String>,
+    pub tags: Option<String>,
 
     /// A URL pointing to a reference website for the book.
     /// It is accepted that multiple values are space separated. If a space is a part of the url it
     /// must be [percent encoded](https://datatracker.ietf.org/doc/html/rfc2396#section-2.4.1).
     #[serde(skip_serializing_if = "Option::is_none")]
-    web: Option<String>,
+    pub web: Option<String>,
 
     /// The number of pages in the book.
     #[serde(skip_serializing_if = "Option::is_none")]
-    page_count: Option<u32>,
+    pub page_count: Option<u32>,
 
     /// A language code describing the language of the book.
     #[serde(rename = "LanguageISO", skip_serializing_if = "Option::is_none")]
-    language_iso: Option<String>,
+    pub language_iso: Option<String>,
 
     /// Whether the book is a manga. This also defines the reading direction as right-to-left when set to `YesAndRightToLeft`.
     #[serde(default)]
-    manga: ComicInfoManga,
+    pub manga: ComicInfoManga,
 
     #[serde(default)]
-    age_rating: ComicInfoAgeRating,
+    pub age_rating: ComicInfoAgeRating,
 }
 
 impl ComicInfo {
@@ -164,7 +212,7 @@ impl ComicInfo {
         self
     }
 
-    pub fn number(&mut self, number: u32) -> &mut Self {
+    pub fn number(&mut self, number: f32) -> &mut Self {
         self.number = Some(number);
         self
     }
