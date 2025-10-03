@@ -9,9 +9,10 @@ use ratatui::{
     widgets::ListState,
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+use tui_input::{Input, backend::crossterm::EventHandler};
 
 use crate::{
-    comic_info::ComicInfo,
+    comic_info::{ComicInfo, ComicInfoAgeRating, ComicInfoManga},
     ui::list::{Chapter, Series, SeriesList},
     zip_util::get_comic_from_zip,
 };
@@ -27,12 +28,168 @@ pub enum Tab {
     Metadata,
 }
 
+/// Current input mode
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum InputMode {
+    #[default]
+    Normal,
+    Editing,
+}
+
 /// Current comic selected on chapter list
-pub struct ComicState {
-    info: ComicInfo,
-    fields: Vec<&'static str>,
-    field_inputs: Vec<String>,
-    fields_state: ListState,
+pub struct ComicInfoForm {
+    fields: Vec<(&'static str, Input)>, // label + input
+    active_index: usize,
+}
+
+impl ComicInfoForm {
+    pub fn new(info: &ComicInfo) -> Self {
+        let fields = vec![
+            ("Title", Input::new(info.title.clone())),
+            ("Series", Input::new(info.series.clone())),
+            (
+                "Number",
+                Input::new(info.number.map(|n| n.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Volume",
+                Input::new(info.volume.map(|v| v.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Summary",
+                Input::new(info.summary.clone().unwrap_or_default()),
+            ),
+            (
+                "Year",
+                Input::new(info.year.map(|y| y.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Month",
+                Input::new(info.month.map(|m| m.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Day",
+                Input::new(info.day.map(|d| d.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Writer",
+                Input::new(info.writer.clone().unwrap_or_default()),
+            ),
+            (
+                "Penciller",
+                Input::new(info.penciller.clone().unwrap_or_default()),
+            ),
+            (
+                "Translator",
+                Input::new(info.translator.clone().unwrap_or_default()),
+            ),
+            (
+                "Publisher",
+                Input::new(info.publisher.clone().unwrap_or_default()),
+            ),
+            ("Genre", Input::new(info.genre.clone().unwrap_or_default())),
+            ("Tags", Input::new(info.tags.clone().unwrap_or_default())),
+            ("Web", Input::new(info.web.clone().unwrap_or_default())),
+            (
+                "Page Count",
+                Input::new(info.page_count.map(|p| p.to_string()).unwrap_or_default()),
+            ),
+            (
+                "Language ISO",
+                Input::new(info.language_iso.clone().unwrap_or_default()),
+            ),
+            ("Manga", Input::new(format!("{:?}", info.manga))),
+            ("Age Rating", Input::new(format!("{:?}", info.age_rating))),
+        ];
+
+        Self {
+            fields,
+            active_index: 0,
+        }
+    }
+
+    pub fn next(&mut self) {
+        self.active_index = (self.active_index + 1) % self.fields.len();
+    }
+
+    pub fn next_side(&mut self) {
+        self.active_index = (self.active_index + 10) % self.fields.len();
+    }
+
+    pub fn prev(&mut self) {
+        if self.active_index == 0 {
+            self.active_index = self.fields.len() - 1;
+        } else {
+            self.active_index -= 1;
+        }
+    }
+
+    pub fn prev_side(&mut self) {
+        let step = 10 % self.fields.len();
+        if self.active_index < step {
+            self.active_index = self.fields.len() + self.active_index - step;
+        } else {
+            self.active_index -= step;
+        }
+    }
+
+    pub fn active_input_mut(&mut self) -> &mut Input {
+        &mut self.fields[self.active_index].1
+    }
+
+    pub fn to_comic_info(&self) -> ComicInfo {
+        ComicInfo {
+            title: self.fields[0].1.value().to_string(),
+            series: self.fields[1].1.value().to_string(),
+            number: parse_opt_f32(self.fields[2].1.value()),
+            volume: parse_opt_u32(self.fields[3].1.value()),
+            summary: parse_opt_string(self.fields[4].1.value()),
+            year: parse_opt_u16(self.fields[5].1.value()),
+            month: parse_opt_u16(self.fields[6].1.value()),
+            day: parse_opt_u8(self.fields[7].1.value()),
+            writer: parse_opt_string(self.fields[8].1.value()),
+            penciller: parse_opt_string(self.fields[9].1.value()),
+            translator: parse_opt_string(self.fields[10].1.value()),
+            publisher: parse_opt_string(self.fields[11].1.value()),
+            genre: parse_opt_string(self.fields[12].1.value()),
+            tags: parse_opt_string(self.fields[13].1.value()),
+            web: parse_opt_string(self.fields[14].1.value()),
+            page_count: parse_opt_u32(self.fields[15].1.value()),
+            language_iso: parse_opt_string(self.fields[16].1.value()),
+            manga: parse_enum::<ComicInfoManga>(self.fields[17].1.value()).unwrap_or_default(),
+            age_rating: parse_enum::<ComicInfoAgeRating>(self.fields[18].1.value())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+fn parse_opt_string(s: &str) -> Option<String> {
+    if s.trim().is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
+}
+
+fn parse_opt_f32(s: &str) -> Option<f32> {
+    s.trim().parse::<f32>().ok()
+}
+
+fn parse_opt_u32(s: &str) -> Option<u32> {
+    s.trim().parse::<u32>().ok()
+}
+
+fn parse_opt_u16(s: &str) -> Option<u16> {
+    s.trim().parse::<u16>().ok()
+}
+
+fn parse_opt_u8(s: &str) -> Option<u8> {
+    s.trim().parse::<u8>().ok()
+}
+
+// For enum fields like Manga and AgeRating
+fn parse_enum<T: std::str::FromStr>(s: &str) -> Option<T> {
+    s.trim().parse::<T>().ok()
 }
 
 /// Main application
@@ -42,7 +199,9 @@ pub struct App {
     series_list: SeriesList,
     image: StatefulProtocol,
 
-    comic: ComicState,
+    input_mode: InputMode,
+
+    comic: ComicInfoForm,
 }
 
 impl Default for App {
@@ -68,32 +227,8 @@ impl App {
             current_tab: Tab::SeriesList,
             series_list: SeriesList::from_iter(series_list),
             image: protocol,
-            comic: ComicState {
-                info: ComicInfo::default(),
-                fields_state,
-                field_inputs: vec![String::new(); 19],
-                fields: vec![
-                    "title",
-                    "series",
-                    "number",
-                    "volume",
-                    "summary",
-                    "year",
-                    "month",
-                    "day",
-                    "writer",
-                    "penciller",
-                    "translator",
-                    "publisher",
-                    "genre",
-                    "tags",
-                    "web",
-                    "page_count",
-                    "language_iso",
-                    "manga",
-                    "age_rating",
-                ],
-            },
+            comic: ComicInfoForm::new(&ComicInfo::default()),
+            input_mode: InputMode::Normal,
         })
     }
 
@@ -117,34 +252,7 @@ impl App {
         }
 
         if self.current_tab == Tab::Metadata {
-            match key.code {
-                KeyCode::Down => self.select_next(),
-                KeyCode::Up => self.select_previous(),
-
-                KeyCode::Backspace => {
-                    if let Some(sel) = self.comic.fields_state.selected() {
-                        self.comic.field_inputs[sel].pop();
-                    }
-                }
-                KeyCode::Delete => {
-                    if let Some(sel) = self.comic.fields_state.selected() {
-                        self.comic.field_inputs[sel].clear();
-                    }
-                }
-
-                KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.save_inputs_to_info();
-                }
-
-                KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    if let Some(sel) = self.comic.fields_state.selected() {
-                        self.comic.field_inputs[sel].push(c);
-                    }
-                }
-
-                KeyCode::Enter => self.current_tab = Tab::ChaptersList,
-                _ => {}
-            }
+            self.handle_key_metadata(key);
         } else {
             match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => self.should_exit = true,
@@ -156,17 +264,58 @@ impl App {
                 KeyCode::Char('u') => self.select_previous_10(),
                 KeyCode::Char('g') | KeyCode::Home => self.select_first(),
                 KeyCode::Char('G') | KeyCode::End => self.select_last(),
-                KeyCode::Char('l') => self.current_tab = Tab::ChaptersList,
-                KeyCode::Char('h') => self.current_tab = Tab::SeriesList,
-                KeyCode::Enter => {
-                    self.current_tab = match self.current_tab {
-                        Tab::Metadata => Tab::ChaptersList,
-                        Tab::ChaptersList => Tab::Metadata,
-                        other @ Tab::SeriesList => other, // leave unchanged
-                    };
-                }
+                KeyCode::Char('l') | KeyCode::Enter => self.next_tab(),
+                KeyCode::Char('h') => self.previous_tab(),
                 _ => {}
             }
+        }
+    }
+
+    fn handle_key_metadata(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.save_inputs_to_info();
+            }
+            KeyCode::Char('e') if self.input_mode == InputMode::Normal => {
+                self.input_mode = InputMode::Editing;
+            }
+            KeyCode::Char('j') | KeyCode::Tab if self.input_mode == InputMode::Normal => {
+                self.comic.next();
+            }
+            KeyCode::Char('k') | KeyCode::BackTab if self.input_mode == InputMode::Normal => {
+                self.comic.prev();
+            }
+            KeyCode::Char('l') if self.input_mode == InputMode::Normal => self.comic.next_side(),
+            KeyCode::Char('h') if self.input_mode == InputMode::Normal => self.comic.prev_side(),
+
+            KeyCode::Esc => {
+                if self.input_mode == InputMode::Editing {
+                    self.input_mode = InputMode::Normal;
+                } else {
+                    self.current_tab = Tab::ChaptersList;
+                }
+            }
+            _ => {
+                if self.input_mode == InputMode::Editing {
+                    self.comic.active_input_mut().handle_event(&Event::Key(key));
+                }
+            }
+        }
+    }
+
+    fn next_tab(&mut self) {
+        match self.current_tab {
+            Tab::SeriesList => self.current_tab = Tab::ChaptersList,
+            Tab::ChaptersList => self.current_tab = Tab::Metadata,
+            Tab::Metadata => {}
+        }
+    }
+
+    fn previous_tab(&mut self) {
+        match self.current_tab {
+            Tab::SeriesList => self.current_tab = Tab::ChaptersList,
+            Tab::ChaptersList => self.current_tab = Tab::SeriesList,
+            Tab::Metadata => {}
         }
     }
 
@@ -175,17 +324,16 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => {
                 self.series_list.state.select_next();
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_next());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {
-                let i = self.comic.fields_state.selected().unwrap_or(0);
-                let next = (i + 1) % self.comic.fields.len();
-                self.comic.fields_state.select(Some(next));
-            }
+            Tab::Metadata => {}
         }
     }
 
@@ -194,21 +342,16 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => {
                 self.series_list.state.select_previous();
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_previous());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {
-                let i = self.comic.fields_state.selected().unwrap_or(0);
-                let prev = if i == 0 {
-                    self.comic.fields.len() - 1
-                } else {
-                    i - 1
-                };
-                self.comic.fields_state.select(Some(prev));
-            }
+            Tab::Metadata => {}
         }
     }
 
@@ -332,111 +475,26 @@ impl App {
 
         self.update_comic_info(current_chapter_path);
     }
+}
 
+impl App {
     /// Update the comic info
     ///
     /// Updates the comic info based on the chapter path
     fn update_comic_info(&mut self, chapter_path: Option<PathBuf>) {
         if let Some(path) = chapter_path {
-            self.comic.info = get_comic_from_zip(&path).unwrap_or_default();
-            self.sync_inputs_from_info();
-        }
-    }
-}
-
-impl App {
-    /// Sync the inputs from the [`ComicInfo`]
-    fn sync_inputs_from_info(&mut self) {
-        for (i, name) in self.comic.fields.iter().enumerate() {
-            self.comic.field_inputs[i] = match *name {
-                "title" => self.comic.info.title.clone(),
-                "series" => self.comic.info.series.clone(),
-                "number" => self
-                    .comic
-                    .info
-                    .number
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "volume" => self
-                    .comic
-                    .info
-                    .volume
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "summary" => self.comic.info.summary.clone().unwrap_or_default(),
-                "year" => self
-                    .comic
-                    .info
-                    .year
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "month" => self
-                    .comic
-                    .info
-                    .month
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "day" => self
-                    .comic
-                    .info
-                    .day
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "writer" => self.comic.info.writer.clone().unwrap_or_default(),
-                "penciller" => self.comic.info.penciller.clone().unwrap_or_default(),
-                "translator" => self.comic.info.translator.clone().unwrap_or_default(),
-                "publisher" => self.comic.info.publisher.clone().unwrap_or_default(),
-                "genre" => self.comic.info.genre.clone().unwrap_or_default(),
-                "tags" => self.comic.info.tags.clone().unwrap_or_default(),
-                "web" => self.comic.info.web.clone().unwrap_or_default(),
-                "page_count" => self
-                    .comic
-                    .info
-                    .page_count
-                    .map(|x| x.to_string())
-                    .unwrap_or_default(),
-                "language_iso" => self.comic.info.language_iso.clone().unwrap_or_default(),
-                "manga" => self.comic.info.manga.to_string().clone(),
-                "age_rating" => self.comic.info.age_rating.to_string().clone(),
-                _ => String::new(),
-            };
+            self.comic = ComicInfoForm::new(&get_comic_from_zip(&path).unwrap_or_default());
+            // self.sync_inputs_from_info();
         }
     }
 
     /// Save the inputs to the [`ComicInfo`]
     fn save_inputs_to_info(&mut self) {
-        for (i, name) in self.comic.fields.iter().enumerate() {
-            let input = self.comic.field_inputs[i].trim();
-            match *name {
-                "title" => self.comic.info.title = input.to_string(),
-                "series" => self.comic.info.series = input.to_string(),
-                "number" => self.comic.info.number = input.parse().ok(),
-                "volume" => self.comic.info.volume = input.parse().ok(),
-                "summary" => self.comic.info.summary = Some(input.to_string()),
-                "year" => self.comic.info.year = input.parse().ok(),
-                "month" => self.comic.info.month = input.parse().ok(),
-                "day" => self.comic.info.day = input.parse().ok(),
-                "writer" => self.comic.info.writer = Some(input.to_string()),
-                "penciller" => self.comic.info.penciller = Some(input.to_string()),
-                "translator" => self.comic.info.translator = Some(input.to_string()),
-                "publisher" => self.comic.info.publisher = Some(input.to_string()),
-                "genre" => self.comic.info.genre = Some(input.to_string()),
-                "tags" => self.comic.info.tags = Some(input.to_string()),
-                "web" => self.comic.info.web = Some(input.to_string()),
-                "page_count" => self.comic.info.page_count = input.parse().ok(),
-                "language_iso" => self.comic.info.language_iso = Some(input.to_string()),
-                "manga" => self.comic.info.manga = input.to_string().into(),
-                "age_rating" => self.comic.info.age_rating = input.to_string().into(),
-                _ => {}
-            }
-        }
-
         // TODO: Remove
-        std::fs::write("test.txt", format!("{:#?}", self.comic.info)).unwrap();
+        std::fs::write("test.txt", format!("{:#?}", self.comic.to_comic_info()))
+            .unwrap_or_default();
     }
-}
 
-impl App {
     fn get_current_series(&self) -> Series {
         let current = self.series_list.state.selected().unwrap_or_default();
         self.series_list.items_state[current].clone()

@@ -1,6 +1,6 @@
 //! The `ComicInfo` struct used in CBZ files
 
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -13,13 +13,15 @@ pub enum ComicInfoManga {
     YesAndRightToLeft,
 }
 
-impl From<String> for ComicInfoManga {
-    fn from(value: String) -> Self {
-        match value.as_str() {
-            "Yes" => Self::Yes,
-            "No" => Self::No,
-            "YesAndRightToLeft" => Self::YesAndRightToLeft,
-            _ => Self::Unknown,
+impl FromStr for ComicInfoManga {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Yes" => Ok(Self::Yes),
+            "No" => Ok(Self::No),
+            "YesAndRightToLeft" => Ok(Self::YesAndRightToLeft),
+            _ => Ok(Self::Unknown),
         }
     }
 }
@@ -65,9 +67,23 @@ pub enum ComicInfoAgeRating {
     AdultsOnly18Plus,
 }
 
-impl From<String> for ComicInfoAgeRating {
-    fn from(value: String) -> Self {
-        match value.as_str() {
+impl FromStr for ComicInfoAgeRating {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Everyone" => Ok(Self::Everyone),
+            "Teen" => Ok(Self::Teen),
+            "Mature 17+" => Ok(Self::Mature17Plus),
+            "Adults Only 18+" => Ok(Self::AdultsOnly18Plus),
+            _ => Ok(Self::Unknown),
+        }
+    }
+}
+
+impl From<&str> for ComicInfoAgeRating {
+    fn from(value: &str) -> Self {
+        match value {
             "Everyone" => Self::Everyone,
             "Teen" => Self::Teen,
             "Mature 17+" => Self::Mature17Plus,
@@ -212,18 +228,33 @@ impl ComicInfo {
         self
     }
 
-    pub fn number(&mut self, number: f32) -> &mut Self {
-        self.number = Some(number);
+    pub fn number(&mut self, number: Option<f32>) -> &mut Self {
+        self.number = number;
         self
     }
 
-    pub fn volume(&mut self, volume: u32) -> &mut Self {
-        self.volume = Some(volume);
+    pub fn volume(&mut self, volume: Option<u32>) -> &mut Self {
+        self.volume = volume;
         self
     }
 
     pub fn summary(&mut self, summary: &str) -> &mut Self {
         self.summary = Some(summary.to_string());
+        self
+    }
+
+    pub fn year(&mut self, year: Option<u16>) -> &mut Self {
+        self.year = year;
+        self
+    }
+
+    pub fn month(&mut self, month: Option<u16>) -> &mut Self {
+        self.month = month;
+        self
+    }
+
+    pub fn day(&mut self, day: Option<u8>) -> &mut Self {
+        self.day = day;
         self
     }
 
@@ -269,8 +300,8 @@ impl ComicInfo {
         self
     }
 
-    pub fn page_count(&mut self, page_count: u32) -> &mut Self {
-        self.page_count = Some(page_count);
+    pub fn page_count(&mut self, page_count: Option<u32>) -> &mut Self {
+        self.page_count = page_count;
         self
     }
 

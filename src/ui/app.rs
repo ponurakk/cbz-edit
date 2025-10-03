@@ -1,19 +1,26 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style, Stylize, palette::tailwind::NEUTRAL},
-    symbols,
-    text::{Line, Span},
+    style::{
+        Color, Modifier, Style, Stylize,
+        palette::tailwind::{NEUTRAL, RED},
+    },
+    symbols::{self, border::PLAIN},
+    text::Line,
     widgets::{
-        Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
+        Block, Borders, HighlightSpacing, List, ListItem, Padding, Paragraph, Scrollbar,
         ScrollbarOrientation,
     },
 };
 use ratatui_image::StatefulImage;
+use tui_input::Input;
 
-use crate::ui::{App, Tab};
+use crate::ui::{App, InputMode, Tab};
 
-const SELECTED_STYLE: Style = Style::new().bg(NEUTRAL.c900).add_modifier(Modifier::BOLD);
+const SELECTED_STYLE: Style = Style::new()
+    .fg(RED.c800)
+    .bg(NEUTRAL.c900)
+    .add_modifier(Modifier::BOLD);
 const SELECTED_YELLOW: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
 const SCROLLBAR: Scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -23,13 +30,12 @@ const SCROLLBAR: Scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
 
 impl App {
     pub fn render(&mut self, frame: &mut Frame) {
-        let area = frame.area();
         let [header_area, main_area, footer_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Fill(1),
             Constraint::Length(1),
         ])
-        .areas(area);
+        .areas(frame.area());
 
         let [series_area, chapters_area, data_area] = if self.current_tab == Tab::SeriesList {
             Layout::horizontal([
@@ -48,7 +54,7 @@ impl App {
         };
 
         let [data_info_area, data_input_area] =
-            Layout::vertical([Constraint::Percentage(30), Constraint::Fill(1)]).areas(data_area);
+            Layout::vertical([Constraint::Percentage(45), Constraint::Fill(1)]).areas(data_area);
 
         App::render_header(header_area, frame);
         App::render_footer(footer_area, frame);
@@ -137,43 +143,139 @@ impl App {
 
         let areas = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(inner_area);
 
         f.render_stateful_widget(StatefulImage::default(), areas[1], &mut self.image);
     }
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
-        let items: Vec<ListItem> = self
-            .comic
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(i, name)| {
-                let input = &self.comic.field_inputs[i];
-                let line = format!("{name:<12}: {input}");
-                ListItem::new(Line::raw(line))
-            })
-            .collect();
-
-        let mut block = Block::new()
-            .title("Edit Metadata")
-            .borders(Borders::ALL)
-            .border_set(symbols::border::ROUNDED);
-
+        let mut title = Line::raw("Edit Metadata").left_aligned();
         if self.current_tab == Tab::Metadata {
-            block = block.title(Span::raw("*"));
+            title = title.style(SELECTED_YELLOW).underlined();
         }
 
-        let list = List::new(items)
-            .block(block)
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(">> ");
+        let block = Block::new()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_set(symbols::border::ROUNDED);
+        let inner = block.inner(area);
+        f.render_widget(block, area);
 
-        f.render_stateful_widget(list, area, &mut self.comic.fields_state);
+        // Split screen into two columns
+        let columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .flex(ratatui::layout::Flex::SpaceAround)
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(45)])
+            .split(inner);
+
+        // split the fields into two halves
+        let mid = self.comic.fields.len().div_ceil(2); // left gets the extra if odd
+        let (left_fields, right_fields) = self.comic.fields.split_at(mid);
+
+        // Left column (vertical split for each field)
+        let left_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3); left_fields.len()])
+            .split(columns[0]);
+
+        for (i, (label, input)) in left_fields.iter().enumerate() {
+            let global_index = i; // real index from form.fields
+            self.render_field(
+                f,
+                label,
+                input,
+                global_index,
+                self.comic.active_index,
+                left_chunks[i],
+            );
+        }
+
+        // Right column (vertical split for each field)
+        let right_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Length(3); right_fields.len()])
+            .split(columns[1]);
+
+        for (i, (label, input)) in right_fields.iter().enumerate() {
+            let global_index = mid + i; // real index continues after left column
+            self.render_field(
+                f,
+                label,
+                input,
+                global_index,
+                self.comic.active_index,
+                right_chunks[i],
+            );
+        }
+    }
+
+    // helper to render a single field block
+    fn render_field(
+        &self,
+        f: &mut Frame,
+        label: &str,
+        input: &Input,
+        idx: usize,
+        active_index: usize,
+        area: ratatui::layout::Rect,
+    ) {
+        let title = Line::raw(label).bold().left_aligned();
+        let mut block = Block::default()
+            .title(title)
+            .padding(Padding::horizontal(1))
+            .borders(Borders::NONE);
+
+        block = if idx == active_index {
+            if self.input_mode == InputMode::Editing {
+                block.border_style(Style::default().fg(Color::Red))
+            } else {
+                block.border_style(Style::default().fg(Color::Cyan))
+            }
+        } else {
+            block
+        };
+
+        let width = area.width.max(3) - 3;
+        let scroll = input.visual_scroll(width as usize);
+        let widget = Paragraph::new(input.value())
+            .scroll((0, scroll as u16))
+            .block(block);
+
+        f.render_widget(widget, area);
+
+        let bottom_border = format!(
+            "{}{}{}",
+            PLAIN.bottom_left,
+            PLAIN
+                .horizontal_bottom
+                .repeat(area.width.saturating_sub(2) as usize),
+            PLAIN.bottom_right
+        );
+
+        let border_paragraph =
+            Paragraph::new(bottom_border).style(Style::default().fg(if idx == active_index {
+                if self.input_mode == InputMode::Editing {
+                    Color::Red
+                } else {
+                    Color::Cyan
+                }
+            } else {
+                Color::White
+            }));
+
+        let border_area = Rect::new(area.x, area.y + area.height - 1, area.width, 1);
+        f.render_widget(border_paragraph, border_area);
+
+        // Cursor positioning
+        if idx == active_index && self.input_mode == InputMode::Editing {
+            let x = if input.cursor() >= (area.width - 2).into() {
+                area.x + area.width - 2
+            } else {
+                area.x + input.cursor() as u16 + 1 // +1 because left border
+            };
+            let y = area.y + 1; // below top border
+            f.set_cursor_position((x, y));
+        }
     }
 }
