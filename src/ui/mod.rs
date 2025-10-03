@@ -57,7 +57,7 @@ impl App {
         let dyn_img =
             ImageReader::open("tumblr_586a38213908da1a27f7d49cf4fed52b_ba0d374c_1280.jpg")?
                 .decode()?;
-        let picker = Picker::from_fontsize((8, 16));
+        let picker = Picker::from_query_stdio()?;
         let protocol = picker.new_resize_protocol(dyn_img);
 
         let mut fields_state = ListState::default();
