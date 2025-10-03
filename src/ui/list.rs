@@ -84,6 +84,27 @@ impl Default for Chapter {
     }
 }
 
+impl PartialEq for Chapter {
+    fn eq(&self, other: &Self) -> bool {
+        self.volume == other.volume && self.chapter == other.chapter
+    }
+}
+impl Eq for Chapter {}
+
+impl PartialOrd for Chapter {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Chapter {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let c1 = self.chapter.unwrap_or(0.0);
+        let c2 = other.chapter.unwrap_or(0.0);
+        c1.partial_cmp(&c2).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
+
 /// List of chapters in a series
 #[derive(Debug, Clone, Default)]
 pub struct ChapterList {
