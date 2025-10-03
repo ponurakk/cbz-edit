@@ -1,12 +1,12 @@
 use ratatui::{
-    buffer::Buffer,
+    Frame,
     layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style, Stylize, palette::tailwind::NEUTRAL},
     symbols,
     text::{Line, Span},
     widgets::{
         Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
-        ScrollbarOrientation, StatefulWidget, Widget,
+        ScrollbarOrientation,
     },
 };
 use ratatui_image::StatefulImage;
@@ -21,8 +21,9 @@ const SCROLLBAR: Scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
     .track_symbol(None)
     .end_symbol(None);
 
-impl Widget for &mut App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl App {
+    pub fn render(&mut self, frame: &mut Frame) {
+        let area = frame.area();
         let [header_area, main_area, footer_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Fill(1),
@@ -49,31 +50,29 @@ impl Widget for &mut App {
         let [data_info_area, data_input_area] =
             Layout::vertical([Constraint::Percentage(30), Constraint::Fill(1)]).areas(data_area);
 
-        App::render_header(header_area, buf);
-        App::render_footer(footer_area, buf);
+        App::render_header(header_area, frame);
+        App::render_footer(footer_area, frame);
 
-        self.render_series(series_area, buf);
-        self.render_chapters(chapters_area, buf);
-        self.render_data_input(data_input_area, buf);
-        self.render_info(data_info_area, buf);
+        self.render_series(series_area, frame);
+        self.render_chapters(chapters_area, frame);
+        self.render_data_input(data_input_area, frame);
+        self.render_info(data_info_area, frame);
     }
 }
 
 impl App {
-    pub fn render_header(area: Rect, buf: &mut Buffer) {
-        Paragraph::new("CBZ file manager")
-            .bold()
-            .centered()
-            .render(area, buf);
+    pub fn render_header(area: Rect, f: &mut Frame) {
+        let title = Paragraph::new("CBZ file manager").bold().centered();
+        f.render_widget(title, area);
     }
 
-    pub fn render_footer(area: Rect, buf: &mut Buffer) {
-        Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.")
-            .centered()
-            .render(area, buf);
+    pub fn render_footer(area: Rect, f: &mut Frame) {
+        let footer =
+            Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.").centered();
+        f.render_widget(footer, area);
     }
 
-    pub fn render_series(&mut self, area: Rect, buf: &mut Buffer) {
+    pub fn render_series(&mut self, area: Rect, f: &mut Frame) {
         let mut title = Line::raw("Series").left_aligned();
         if self.current_tab == Tab::SeriesList {
             title = title.style(SELECTED_YELLOW).underlined();
@@ -92,11 +91,11 @@ impl App {
             .highlight_spacing(HighlightSpacing::Always);
 
         let inner = area.inner(Margin::new(0, 1));
-        StatefulWidget::render(list, area, buf, &mut self.series_list.state);
-        StatefulWidget::render(SCROLLBAR, inner, buf, &mut self.series_list.scroll_state);
+        f.render_stateful_widget(list, area, &mut self.series_list.state);
+        f.render_stateful_widget(SCROLLBAR, inner, &mut self.series_list.scroll_state);
     }
 
-    pub fn render_chapters(&mut self, area: Rect, buf: &mut Buffer) {
+    pub fn render_chapters(&mut self, area: Rect, f: &mut Frame) {
         let mut title = Line::raw("Chapters").left_aligned();
         if self.current_tab == Tab::ChaptersList {
             title = title.style(SELECTED_YELLOW).underlined();
@@ -123,28 +122,28 @@ impl App {
             .highlight_spacing(HighlightSpacing::Always);
 
         let inner = area.inner(Margin::new(0, 1));
-        StatefulWidget::render(list, area, buf, &mut series.chapters.state);
-        StatefulWidget::render(SCROLLBAR, inner, buf, &mut series.chapters.scroll_state);
+        f.render_stateful_widget(list, area, &mut series.chapters.state);
+        f.render_stateful_widget(SCROLLBAR, inner, &mut series.chapters.scroll_state);
     }
 
-    pub fn render_info(&mut self, area: Rect, buf: &mut Buffer) {
+    pub fn render_info(&mut self, area: Rect, f: &mut Frame) {
         let block = Block::new()
             .title(Line::raw("Info").left_aligned())
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
 
         let inner_area = block.inner(area);
-        Widget::render(block, area, buf);
+        f.render_widget(block, area);
 
         let areas = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(inner_area);
 
-        StatefulImage::new().render(areas[1], buf, &mut self.image);
+        f.render_stateful_widget(StatefulImage::default(), areas[1], &mut self.image);
     }
 
-    pub fn render_data_input(&mut self, area: Rect, buf: &mut Buffer) {
+    pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
         let items: Vec<ListItem> = self
             .comic
             .fields
@@ -175,6 +174,6 @@ impl App {
             )
             .highlight_symbol(">> ");
 
-        StatefulWidget::render(list, area, buf, &mut self.comic.fields_state);
+        f.render_stateful_widget(list, area, &mut self.comic.fields_state);
     }
 }

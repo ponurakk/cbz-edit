@@ -100,7 +100,7 @@ impl App {
     /// Run the application
     pub fn run(mut self, mut terminal: DefaultTerminal) -> anyhow::Result<()> {
         while !self.should_exit {
-            terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
+            terminal.draw(|frame| self.render(frame))?;
 
             if let Event::Key(key) = event::read()? {
                 self.handle_key(key);
@@ -295,11 +295,13 @@ impl App {
         }
     }
 
+    /// Update the series scroll
     fn update_series_scroll(&mut self) {
         let current = self.series_list.state.selected().unwrap_or_default();
         self.series_list.scroll_state = self.series_list.scroll_state.position(current);
     }
 
+    /// Update the chapter scroll
     fn update_chapter_scroll(&mut self) {
         let current = self.series_list.state.selected().unwrap_or_default();
         if let Some(series) = self.series_list.items_state.get_mut(current) {
