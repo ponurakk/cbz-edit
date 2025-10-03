@@ -61,7 +61,7 @@ impl App {
         let protocol = picker.new_resize_protocol(dyn_img);
 
         let mut fields_state = ListState::default();
-        fields_state.select(Some(0));
+        fields_state.select_first();
 
         Ok(Self {
             should_exit: false,
@@ -156,12 +156,8 @@ impl App {
                 KeyCode::Char('u') => self.select_previous_10(),
                 KeyCode::Char('g') | KeyCode::Home => self.select_first(),
                 KeyCode::Char('G') | KeyCode::End => self.select_last(),
-                KeyCode::Tab => {
-                    self.current_tab = match self.current_tab {
-                        Tab::SeriesList | Tab::Metadata => Tab::ChaptersList,
-                        Tab::ChaptersList => Tab::SeriesList,
-                    };
-                }
+                KeyCode::Char('l') => self.current_tab = Tab::ChaptersList,
+                KeyCode::Char('h') => self.current_tab = Tab::SeriesList,
                 KeyCode::Enter => {
                     self.current_tab = match self.current_tab {
                         Tab::Metadata => Tab::ChaptersList,
@@ -177,9 +173,13 @@ impl App {
     /// Select the next item
     fn select_next(&mut self) {
         match self.current_tab {
-            Tab::SeriesList => self.series_list.state.select_next(),
+            Tab::SeriesList => {
+                self.series_list.state.select_next();
+                self.update_series_scroll();
+            }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_next());
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {
                 let i = self.comic.fields_state.selected().unwrap_or(0);
@@ -192,9 +192,13 @@ impl App {
     /// Select the previous item
     fn select_previous(&mut self) {
         match self.current_tab {
-            Tab::SeriesList => self.series_list.state.select_previous(),
+            Tab::SeriesList => {
+                self.series_list.state.select_previous();
+                self.update_series_scroll();
+            }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_previous());
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {
                 let i = self.comic.fields_state.selected().unwrap_or(0);
@@ -220,6 +224,7 @@ impl App {
                 let len = self.series_list.items.len();
                 let new_idx = Self::select_next_n(self.series_list.state.selected(), 10, len);
                 self.series_list.state.select(Some(new_idx));
+                self.update_series_scroll();
             }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| {
@@ -227,6 +232,7 @@ impl App {
                     let new_idx = Self::select_next_n(series.chapters.state.selected(), 10, len);
                     series.chapters.state.select(Some(new_idx));
                 });
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {}
         }
@@ -244,6 +250,7 @@ impl App {
                 let len = self.series_list.items.len();
                 let new_idx = Self::select_previous_n(self.series_list.state.selected(), 10, len);
                 self.series_list.state.select(Some(new_idx));
+                self.update_series_scroll();
             }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| {
@@ -252,6 +259,7 @@ impl App {
                         Self::select_previous_n(series.chapters.state.selected(), 10, len);
                     series.chapters.state.select(Some(new_idx));
                 });
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {}
         }
@@ -260,9 +268,13 @@ impl App {
     /// Select the first item
     fn select_first(&mut self) {
         match self.current_tab {
-            Tab::SeriesList => self.series_list.state.select_first(),
+            Tab::SeriesList => {
+                self.series_list.state.select_first();
+                self.update_series_scroll();
+            }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_first());
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {}
         }
@@ -271,11 +283,28 @@ impl App {
     /// Select the last item
     fn select_last(&mut self) {
         match self.current_tab {
-            Tab::SeriesList => self.series_list.state.select_last(),
+            Tab::SeriesList => {
+                self.series_list.state.select_last();
+                self.update_series_scroll();
+            }
             Tab::ChaptersList => {
                 self.update_chapter_select(|series| series.chapters.state.select_last());
+                self.update_chapter_scroll();
             }
             Tab::Metadata => {}
+        }
+    }
+
+    fn update_series_scroll(&mut self) {
+        let current = self.series_list.state.selected().unwrap_or_default();
+        self.series_list.scroll_state = self.series_list.scroll_state.position(current);
+    }
+
+    fn update_chapter_scroll(&mut self) {
+        let current = self.series_list.state.selected().unwrap_or_default();
+        if let Some(series) = self.series_list.items_state.get_mut(current) {
+            let current_chapter = series.chapters.state.selected().unwrap_or(0);
+            series.chapters.scroll_state = series.chapters.scroll_state.position(current_chapter);
         }
     }
 

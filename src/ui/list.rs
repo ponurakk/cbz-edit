@@ -1,14 +1,21 @@
 use std::path::PathBuf;
 
-use ratatui::widgets::{ListItem, ListState};
+use ratatui::widgets::{ListItem, ListState, ScrollbarState};
 
+/// Series from disk
 #[derive(Debug, Clone, Default)]
 pub struct Series {
+    /// Path to the series
     pub path: PathBuf,
+
+    /// Name of the series
     pub name: String,
+
+    /// Chapters of the series
     pub chapters: ChapterList,
 }
 
+/// List of series
 pub struct SeriesList {
     /// Shown state of projects
     pub items: Vec<Series>,
@@ -18,16 +25,23 @@ pub struct SeriesList {
 
     /// State of the list
     pub state: ListState,
+
+    /// State of the scrollbar
+    pub scroll_state: ScrollbarState,
 }
 
 impl FromIterator<Series> for SeriesList {
     fn from_iter<T: IntoIterator<Item = Series>>(iter: T) -> Self {
-        let state = ListState::default();
+        let mut state = ListState::default();
+        state.select_first();
+
         let items: Vec<Series> = iter.into_iter().collect();
+        let len = items.len();
         Self {
             items: items.clone(),
             items_state: items,
             state,
+            scroll_state: ScrollbarState::default().content_length(len),
         }
     }
 }
@@ -70,6 +84,7 @@ impl Default for Chapter {
     }
 }
 
+/// List of chapters in a series
 #[derive(Debug, Clone, Default)]
 pub struct ChapterList {
     /// Shown state of projects
@@ -80,16 +95,23 @@ pub struct ChapterList {
 
     /// State of the list
     pub state: ListState,
+
+    /// State of the scrollbar
+    pub scroll_state: ScrollbarState,
 }
 
 impl FromIterator<Chapter> for ChapterList {
     fn from_iter<T: IntoIterator<Item = Chapter>>(iter: T) -> Self {
-        let state = ListState::default();
+        let mut state = ListState::default();
+        state.select_first();
+
         let items: Vec<Chapter> = iter.into_iter().collect();
+        let len = items.len();
         Self {
             items: items.clone(),
             items_state: items,
             state,
+            scroll_state: ScrollbarState::default().content_length(len),
         }
     }
 }

@@ -1,11 +1,12 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Modifier, Style, Stylize, palette::tailwind::NEUTRAL},
     symbols,
     text::{Line, Span},
     widgets::{
-        Block, Borders, HighlightSpacing, List, ListItem, Paragraph, StatefulWidget, Widget,
+        Block, Borders, HighlightSpacing, List, ListItem, Paragraph, Scrollbar,
+        ScrollbarOrientation, StatefulWidget, Widget,
     },
 };
 use ratatui_image::StatefulImage;
@@ -13,6 +14,12 @@ use ratatui_image::StatefulImage;
 use crate::ui::{App, Tab};
 
 const SELECTED_STYLE: Style = Style::new().bg(NEUTRAL.c900).add_modifier(Modifier::BOLD);
+const SELECTED_YELLOW: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+
+const SCROLLBAR: Scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+    .begin_symbol(None)
+    .track_symbol(None)
+    .end_symbol(None);
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -23,12 +30,21 @@ impl Widget for &mut App {
         ])
         .areas(area);
 
-        let [series_area, chapters_area, data_area] = Layout::horizontal([
-            Constraint::Percentage(30),
-            Constraint::Percentage(30),
-            Constraint::Fill(1),
-        ])
-        .areas(main_area);
+        let [series_area, chapters_area, data_area] = if self.current_tab == Tab::SeriesList {
+            Layout::horizontal([
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+                Constraint::Fill(1),
+            ])
+            .areas(main_area)
+        } else {
+            Layout::horizontal([
+                Constraint::Percentage(20),
+                Constraint::Percentage(40),
+                Constraint::Fill(1),
+            ])
+            .areas(main_area)
+        };
 
         let [data_info_area, data_input_area] =
             Layout::vertical([Constraint::Percentage(30), Constraint::Fill(1)]).areas(data_area);
@@ -52,19 +68,21 @@ impl App {
     }
 
     pub fn render_footer(area: Rect, buf: &mut Buffer) {
-        Paragraph::new("Use ↓↑ to move, ← to unselect, g/G to go top/bottom.")
+        Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.")
             .centered()
             .render(area, buf);
     }
 
     pub fn render_series(&mut self, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::new()
-            .title(Line::raw("Series").left_aligned())
+        let mut title = Line::raw("Series").left_aligned();
+        if self.current_tab == Tab::SeriesList {
+            title = title.style(SELECTED_YELLOW).underlined();
+        }
+
+        let block = Block::new()
+            .title(title)
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
-        if self.current_tab == Tab::SeriesList {
-            block = block.title(Line::raw("*").left_aligned());
-        }
 
         let items: Vec<ListItem> = self.series_list.items.iter().map(ListItem::from).collect();
 
@@ -73,17 +91,21 @@ impl App {
             .highlight_style(SELECTED_STYLE)
             .highlight_spacing(HighlightSpacing::Always);
 
+        let inner = area.inner(Margin::new(0, 1));
         StatefulWidget::render(list, area, buf, &mut self.series_list.state);
+        StatefulWidget::render(SCROLLBAR, inner, buf, &mut self.series_list.scroll_state);
     }
 
     pub fn render_chapters(&mut self, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::new()
-            .title(Line::raw("Chapters").left_aligned())
+        let mut title = Line::raw("Chapters").left_aligned();
+        if self.current_tab == Tab::ChaptersList {
+            title = title.style(SELECTED_YELLOW).underlined();
+        }
+
+        let block = Block::new()
+            .title(title)
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
-        if self.current_tab == Tab::ChaptersList {
-            block = block.title(Span::raw("*"));
-        }
 
         let Some(series) = self
             .series_list
@@ -100,7 +122,9 @@ impl App {
             .highlight_style(SELECTED_STYLE)
             .highlight_spacing(HighlightSpacing::Always);
 
+        let inner = area.inner(Margin::new(0, 1));
         StatefulWidget::render(list, area, buf, &mut series.chapters.state);
+        StatefulWidget::render(SCROLLBAR, inner, buf, &mut series.chapters.scroll_state);
     }
 
     pub fn render_info(&mut self, area: Rect, buf: &mut Buffer) {
