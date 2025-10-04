@@ -19,6 +19,7 @@ use crate::{
     ui::{
         comic_form::{ComicFormState, ComicInfoForm},
         list::{Chapter, Series, SeriesList},
+        spinner::SpinnerState,
     },
     zip_util::get_comic_from_zip,
 };
@@ -29,7 +30,7 @@ pub mod list;
 pub mod spinner;
 
 /// Debounce delay for chapter selection
-const LOAD_DELAY: Duration = Duration::from_millis(250);
+const TICK_RATE: Duration = Duration::from_millis(100);
 
 /// Current tab
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -60,7 +61,7 @@ pub struct App {
     comic_rx: Option<mpsc::Receiver<ComicInfoForm>>,
     last_selection_change: Option<Instant>,
     pending_selection: Option<PathBuf>,
-    tick_count: usize,
+    spinner: SpinnerState,
 }
 
 impl Default for App {
@@ -91,12 +92,13 @@ impl App {
             comic_rx: None,
             last_selection_change: None,
             pending_selection: None,
-            tick_count: 0,
+            spinner: SpinnerState::default(),
         })
     }
 
     /// Run the application
     pub fn run(mut self, mut terminal: DefaultTerminal) -> anyhow::Result<()> {
+        let mut last_tick = std::time::Instant::now();
         while !self.should_exit {
             terminal.draw(|frame| self.render(frame))?;
 
@@ -106,7 +108,10 @@ impl App {
                 self.handle_key(key);
             }
 
-            self.tick();
+            if last_tick.elapsed() >= TICK_RATE {
+                self.tick();
+                last_tick = std::time::Instant::now();
+            }
         }
 
         Ok(())
@@ -117,17 +122,13 @@ impl App {
         self.poll_comic_info();
 
         // debounce loading
-        if let (Some(path), Some(last)) =
-            (self.pending_selection.clone(), self.last_selection_change)
-            && last.elapsed() >= LOAD_DELAY
-        {
+        if let Some(path) = self.pending_selection.clone() {
             // start background load after 0.5s idle
             self.update_comic_info(Some(path));
             self.pending_selection = None;
-            self.last_selection_change = None;
         }
 
-        self.tick_count = self.tick_count.wrapping_add(1);
+        self.spinner.tick();
     }
 
     /// Handle key events

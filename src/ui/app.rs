@@ -158,7 +158,7 @@ impl App {
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
         let ComicFormState::Ready(ref comic) = self.comic else {
-            f.render_widget(Spinner::new(" Edit Metadata ", self.tick_count), area);
+            f.render_stateful_widget(Spinner::new(" Edit Metadata "), area, &mut self.spinner);
             return;
         };
 
