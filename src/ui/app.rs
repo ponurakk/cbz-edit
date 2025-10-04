@@ -79,10 +79,11 @@ impl App {
     }
 
     pub fn render_series(&mut self, area: Rect, f: &mut Frame) {
-        let mut title = Line::raw("Series").left_aligned();
+        let mut title = Span::raw("Series");
         if self.current_tab == Tab::SeriesList {
             title = title.style(SELECTED_YELLOW).underlined();
         }
+        let title = Line::from(vec![Span::raw(" "), title, Span::raw(" ")]).left_aligned();
 
         let block = Block::new()
             .title(title)
@@ -102,10 +103,11 @@ impl App {
     }
 
     pub fn render_chapters(&mut self, area: Rect, f: &mut Frame) {
-        let mut title = Line::raw("Chapters").left_aligned();
+        let mut title = Span::raw("Chapters");
         if self.current_tab == Tab::ChaptersList {
             title = title.style(SELECTED_YELLOW).underlined();
         }
+        let mut title = Line::from(vec![Span::raw(" "), title, Span::raw(" ")]).left_aligned();
 
         let Some(series) = self
             .series_list
@@ -116,7 +118,7 @@ impl App {
         };
 
         title.push_span(Span::raw(format!(
-            " ({})",
+            "({}) ",
             series.chapters.items_state.len()
         )));
 
@@ -139,7 +141,7 @@ impl App {
 
     pub fn render_info(&mut self, area: Rect, f: &mut Frame) {
         let block = Block::new()
-            .title(Line::raw("Info").left_aligned())
+            .title(Line::raw(" Info ").left_aligned())
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
 
@@ -156,14 +158,15 @@ impl App {
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
         let ComicFormState::Ready(ref comic) = self.comic else {
-            f.render_widget(Spinner::new("Edit Metadata", self.tick_count), area);
+            f.render_widget(Spinner::new(" Edit Metadata ", self.tick_count), area);
             return;
         };
 
-        let mut title = Line::raw("Edit Metadata").left_aligned();
+        let mut title = Span::raw("Edit Metadata");
         if self.current_tab == Tab::Metadata {
             title = title.style(SELECTED_YELLOW).underlined();
         }
+        let title = Line::from(vec![Span::raw(" "), title, Span::raw(" ")]).left_aligned();
 
         let block = Block::new()
             .title(title)
