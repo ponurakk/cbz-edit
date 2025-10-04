@@ -3,10 +3,10 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Margin, Rect},
     style::{
         Color, Modifier, Style, Stylize,
-        palette::tailwind::{NEUTRAL, RED},
+        palette::tailwind::{CYAN, NEUTRAL},
     },
     symbols::{self, border::PLAIN},
-    text::Line,
+    text::{Line, Span},
     widgets::{
         Block, Borders, HighlightSpacing, List, ListItem, Padding, Paragraph, Scrollbar,
         ScrollbarOrientation,
@@ -15,10 +15,10 @@ use ratatui::{
 use ratatui_image::StatefulImage;
 use tui_input::Input;
 
-use crate::ui::{App, InputMode, Tab};
+use crate::ui::{App, ComicFormState, InputMode, Tab, spinner::Spinner};
 
 const SELECTED_STYLE: Style = Style::new()
-    .fg(RED.c800)
+    .fg(CYAN.c600)
     .bg(NEUTRAL.c900)
     .add_modifier(Modifier::BOLD);
 const SELECTED_YELLOW: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
@@ -107,11 +107,6 @@ impl App {
             title = title.style(SELECTED_YELLOW).underlined();
         }
 
-        let block = Block::new()
-            .title(title)
-            .borders(Borders::ALL)
-            .border_set(symbols::border::ROUNDED);
-
         let Some(series) = self
             .series_list
             .items_state
@@ -119,6 +114,16 @@ impl App {
         else {
             return;
         };
+
+        title.push_span(Span::raw(format!(
+            " ({})",
+            series.chapters.items_state.len()
+        )));
+
+        let block = Block::new()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_set(symbols::border::ROUNDED);
 
         let items: Vec<ListItem> = series.chapters.items.iter().map(ListItem::from).collect();
 
@@ -150,6 +155,11 @@ impl App {
     }
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
+        let ComicFormState::Ready(ref comic) = self.comic else {
+            f.render_widget(Spinner::new("Edit Metadata", self.tick_count), area);
+            return;
+        };
+
         let mut title = Line::raw("Edit Metadata").left_aligned();
         if self.current_tab == Tab::Metadata {
             title = title.style(SELECTED_YELLOW).underlined();
@@ -170,8 +180,8 @@ impl App {
             .split(inner);
 
         // split the fields into two halves
-        let mid = self.comic.fields.len().div_ceil(2); // left gets the extra if odd
-        let (left_fields, right_fields) = self.comic.fields.split_at(mid);
+        let mid = comic.fields.len().div_ceil(2); // left gets the extra if odd
+        let (left_fields, right_fields) = comic.fields.split_at(mid);
 
         // Left column (vertical split for each field)
         let left_chunks = Layout::default()
@@ -186,7 +196,7 @@ impl App {
                 label,
                 input,
                 global_index,
-                self.comic.active_index,
+                comic.active_index,
                 left_chunks[i],
             );
         }
@@ -204,7 +214,7 @@ impl App {
                 label,
                 input,
                 global_index,
-                self.comic.active_index,
+                comic.active_index,
                 right_chunks[i],
             );
         }

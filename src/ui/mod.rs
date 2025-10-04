@@ -1,6 +1,10 @@
 //! UI for the application
 
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 use image::ImageReader;
 use ratatui::{
@@ -9,16 +13,23 @@ use ratatui::{
     widgets::ListState,
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
-use tui_input::{Input, backend::crossterm::EventHandler};
+use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
-    comic_info::{ComicInfo, ComicInfoAgeRating, ComicInfoManga},
-    ui::list::{Chapter, Series, SeriesList},
+    ui::{
+        comic_form::{ComicFormState, ComicInfoForm},
+        list::{Chapter, Series, SeriesList},
+    },
     zip_util::get_comic_from_zip,
 };
 
 pub mod app;
+pub mod comic_form;
 pub mod list;
+pub mod spinner;
+
+/// Debounce delay for chapter selection
+const LOAD_DELAY: Duration = Duration::from_millis(250);
 
 /// Current tab
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -36,162 +47,6 @@ enum InputMode {
     Editing,
 }
 
-/// Current comic selected on chapter list
-pub struct ComicInfoForm {
-    fields: Vec<(&'static str, Input)>, // label + input
-    active_index: usize,
-}
-
-impl ComicInfoForm {
-    pub fn new(info: &ComicInfo) -> Self {
-        let fields = vec![
-            ("Title", Input::new(info.title.clone())),
-            ("Series", Input::new(info.series.clone())),
-            (
-                "Number",
-                Input::new(info.number.map(|n| n.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Volume",
-                Input::new(info.volume.map(|v| v.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Summary",
-                Input::new(info.summary.clone().unwrap_or_default()),
-            ),
-            (
-                "Year",
-                Input::new(info.year.map(|y| y.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Month",
-                Input::new(info.month.map(|m| m.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Day",
-                Input::new(info.day.map(|d| d.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Writer",
-                Input::new(info.writer.clone().unwrap_or_default()),
-            ),
-            (
-                "Penciller",
-                Input::new(info.penciller.clone().unwrap_or_default()),
-            ),
-            (
-                "Translator",
-                Input::new(info.translator.clone().unwrap_or_default()),
-            ),
-            (
-                "Publisher",
-                Input::new(info.publisher.clone().unwrap_or_default()),
-            ),
-            ("Genre", Input::new(info.genre.clone().unwrap_or_default())),
-            ("Tags", Input::new(info.tags.clone().unwrap_or_default())),
-            ("Web", Input::new(info.web.clone().unwrap_or_default())),
-            (
-                "Page Count",
-                Input::new(info.page_count.map(|p| p.to_string()).unwrap_or_default()),
-            ),
-            (
-                "Language ISO",
-                Input::new(info.language_iso.clone().unwrap_or_default()),
-            ),
-            ("Manga", Input::new(format!("{:?}", info.manga))),
-            ("Age Rating", Input::new(format!("{:?}", info.age_rating))),
-        ];
-
-        Self {
-            fields,
-            active_index: 0,
-        }
-    }
-
-    pub fn next(&mut self) {
-        self.active_index = (self.active_index + 1) % self.fields.len();
-    }
-
-    pub fn next_side(&mut self) {
-        self.active_index = (self.active_index + 10) % self.fields.len();
-    }
-
-    pub fn prev(&mut self) {
-        if self.active_index == 0 {
-            self.active_index = self.fields.len() - 1;
-        } else {
-            self.active_index -= 1;
-        }
-    }
-
-    pub fn prev_side(&mut self) {
-        let step = 10 % self.fields.len();
-        if self.active_index < step {
-            self.active_index = self.fields.len() + self.active_index - step;
-        } else {
-            self.active_index -= step;
-        }
-    }
-
-    pub fn active_input_mut(&mut self) -> &mut Input {
-        &mut self.fields[self.active_index].1
-    }
-
-    pub fn to_comic_info(&self) -> ComicInfo {
-        ComicInfo {
-            title: self.fields[0].1.value().to_string(),
-            series: self.fields[1].1.value().to_string(),
-            number: parse_opt_f32(self.fields[2].1.value()),
-            volume: parse_opt_u32(self.fields[3].1.value()),
-            summary: parse_opt_string(self.fields[4].1.value()),
-            year: parse_opt_u16(self.fields[5].1.value()),
-            month: parse_opt_u16(self.fields[6].1.value()),
-            day: parse_opt_u8(self.fields[7].1.value()),
-            writer: parse_opt_string(self.fields[8].1.value()),
-            penciller: parse_opt_string(self.fields[9].1.value()),
-            translator: parse_opt_string(self.fields[10].1.value()),
-            publisher: parse_opt_string(self.fields[11].1.value()),
-            genre: parse_opt_string(self.fields[12].1.value()),
-            tags: parse_opt_string(self.fields[13].1.value()),
-            web: parse_opt_string(self.fields[14].1.value()),
-            page_count: parse_opt_u32(self.fields[15].1.value()),
-            language_iso: parse_opt_string(self.fields[16].1.value()),
-            manga: parse_enum::<ComicInfoManga>(self.fields[17].1.value()).unwrap_or_default(),
-            age_rating: parse_enum::<ComicInfoAgeRating>(self.fields[18].1.value())
-                .unwrap_or_default(),
-        }
-    }
-}
-
-fn parse_opt_string(s: &str) -> Option<String> {
-    if s.trim().is_empty() {
-        None
-    } else {
-        Some(s.to_string())
-    }
-}
-
-fn parse_opt_f32(s: &str) -> Option<f32> {
-    s.trim().parse::<f32>().ok()
-}
-
-fn parse_opt_u32(s: &str) -> Option<u32> {
-    s.trim().parse::<u32>().ok()
-}
-
-fn parse_opt_u16(s: &str) -> Option<u16> {
-    s.trim().parse::<u16>().ok()
-}
-
-fn parse_opt_u8(s: &str) -> Option<u8> {
-    s.trim().parse::<u8>().ok()
-}
-
-// For enum fields like Manga and AgeRating
-fn parse_enum<T: std::str::FromStr>(s: &str) -> Option<T> {
-    s.trim().parse::<T>().ok()
-}
-
 /// Main application
 pub struct App {
     should_exit: bool,
@@ -201,7 +56,11 @@ pub struct App {
 
     input_mode: InputMode,
 
-    comic: ComicInfoForm,
+    comic: ComicFormState,
+    comic_rx: Option<mpsc::Receiver<ComicInfoForm>>,
+    last_selection_change: Option<Instant>,
+    pending_selection: Option<PathBuf>,
+    tick_count: usize,
 }
 
 impl Default for App {
@@ -227,8 +86,12 @@ impl App {
             current_tab: Tab::SeriesList,
             series_list: SeriesList::from_iter(series_list),
             image: protocol,
-            comic: ComicInfoForm::new(&ComicInfo::default()),
+            comic: ComicFormState::Loading(()),
             input_mode: InputMode::Normal,
+            comic_rx: None,
+            last_selection_change: None,
+            pending_selection: None,
+            tick_count: 0,
         })
     }
 
@@ -237,12 +100,34 @@ impl App {
         while !self.should_exit {
             terminal.draw(|frame| self.render(frame))?;
 
-            if let Event::Key(key) = event::read()? {
+            if event::poll(Duration::from_millis(50))?
+                && let Event::Key(key) = event::read()?
+            {
                 self.handle_key(key);
             }
+
+            self.tick();
         }
 
         Ok(())
+    }
+
+    fn tick(&mut self) {
+        // check for finished async loads
+        self.poll_comic_info();
+
+        // debounce loading
+        if let (Some(path), Some(last)) =
+            (self.pending_selection.clone(), self.last_selection_change)
+            && last.elapsed() >= LOAD_DELAY
+        {
+            // start background load after 0.5s idle
+            self.update_comic_info(Some(path));
+            self.pending_selection = None;
+            self.last_selection_change = None;
+        }
+
+        self.tick_count = self.tick_count.wrapping_add(1);
     }
 
     /// Handle key events
@@ -255,13 +140,15 @@ impl App {
             self.handle_key_metadata(key);
         } else {
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => self.should_exit = true,
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.should_exit = true;
+                }
 
                 // Movement
                 KeyCode::Char('j') | KeyCode::Down => self.select_next(),
                 KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
-                KeyCode::Char('d') => self.select_next_10(),
-                KeyCode::Char('u') => self.select_previous_10(),
+                KeyCode::Char('d') | KeyCode::PageDown => self.select_next_10(),
+                KeyCode::Char('u') | KeyCode::PageUp => self.select_previous_10(),
                 KeyCode::Char('g') | KeyCode::Home => self.select_first(),
                 KeyCode::Char('G') | KeyCode::End => self.select_last(),
                 KeyCode::Char('l') | KeyCode::Enter => self.next_tab(),
@@ -276,8 +163,11 @@ impl App {
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.save_inputs_to_info();
             }
-            KeyCode::Char('e') if self.input_mode == InputMode::Normal => {
+            KeyCode::Enter if self.input_mode == InputMode::Normal => {
                 self.input_mode = InputMode::Editing;
+            }
+            KeyCode::Enter if self.input_mode == InputMode::Editing => {
+                self.input_mode = InputMode::Normal;
             }
             KeyCode::Char('j') | KeyCode::Tab if self.input_mode == InputMode::Normal => {
                 self.comic.next();
@@ -296,8 +186,10 @@ impl App {
                 }
             }
             _ => {
-                if self.input_mode == InputMode::Editing {
-                    self.comic.active_input_mut().handle_event(&Event::Key(key));
+                if self.input_mode == InputMode::Editing
+                    && let Some(input) = self.comic.active_input_mut()
+                {
+                    input.handle_event(&Event::Key(key));
                 }
             }
         }
@@ -367,6 +259,9 @@ impl App {
                 let len = self.series_list.items.len();
                 let new_idx = Self::select_next_n(self.series_list.state.selected(), 10, len);
                 self.series_list.state.select(Some(new_idx));
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
@@ -393,6 +288,9 @@ impl App {
                 let len = self.series_list.items.len();
                 let new_idx = Self::select_previous_n(self.series_list.state.selected(), 10, len);
                 self.series_list.state.select(Some(new_idx));
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
@@ -413,6 +311,9 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => {
                 self.series_list.state.select_first();
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
@@ -428,6 +329,9 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => {
                 self.series_list.state.select_last();
+                self.update_chapter_select(|series| {
+                    series.chapters.state.selected();
+                });
                 self.update_series_scroll();
             }
             Tab::ChaptersList => {
@@ -473,7 +377,9 @@ impl App {
             }
         };
 
-        self.update_comic_info(current_chapter_path);
+        self.comic = ComicFormState::Loading(());
+        self.last_selection_change = Some(Instant::now());
+        self.pending_selection = current_chapter_path;
     }
 }
 
@@ -483,8 +389,24 @@ impl App {
     /// Updates the comic info based on the chapter path
     fn update_comic_info(&mut self, chapter_path: Option<PathBuf>) {
         if let Some(path) = chapter_path {
-            self.comic = ComicInfoForm::new(&get_comic_from_zip(&path).unwrap_or_default());
-            // self.sync_inputs_from_info();
+            let (tx, rx) = std::sync::mpsc::channel();
+            self.comic_rx = Some(rx);
+            self.comic = ComicFormState::Loading(());
+
+            std::thread::spawn(move || {
+                let info = get_comic_from_zip(&path).unwrap_or_default();
+                let form = ComicInfoForm::new(&info);
+                let _ = tx.send(form);
+            });
+        }
+    }
+
+    fn poll_comic_info(&mut self) {
+        if let Some(rx) = &self.comic_rx
+            && let Ok(form) = rx.try_recv()
+        {
+            self.comic = ComicFormState::Ready(form);
+            self.comic_rx = None;
         }
     }
 
