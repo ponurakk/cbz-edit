@@ -15,6 +15,27 @@ pub struct Series {
     pub chapters: ChapterList,
 }
 
+impl PartialEq for Series {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.name == other.name
+    }
+}
+impl Eq for Series {}
+
+impl PartialOrd for Series {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Series {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let c1 = &self.name.to_lowercase();
+        let c2 = &other.name.to_lowercase();
+        c1.partial_cmp(c2).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
+
 /// List of series
 pub struct SeriesList {
     /// Shown state of projects

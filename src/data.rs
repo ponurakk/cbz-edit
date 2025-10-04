@@ -24,6 +24,8 @@ pub fn get_series_list<P: AsRef<Path>>(path: P) -> io::Result<Vec<Series>> {
         }
     }
 
+    folders.sort();
+
     Ok(folders)
 }
 
@@ -49,7 +51,6 @@ pub fn get_cbz_list<P: AsRef<Path>>(path: P) -> io::Result<Vec<Chapter>> {
     Ok(cbz_files)
 }
 
-// TODO: Improve this or use something better than regex
 pub fn parse_filename(path: PathBuf, filename: &str) -> Chapter {
     let name = filename.trim_end_matches(".cbz");
 
