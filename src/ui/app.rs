@@ -57,7 +57,7 @@ impl App {
             Layout::vertical([Constraint::Percentage(45), Constraint::Fill(1)]).areas(data_area);
 
         App::render_header(header_area, frame);
-        App::render_footer(footer_area, frame);
+        self.render_footer(footer_area, frame);
 
         self.render_series(series_area, frame);
         self.render_chapters(chapters_area, frame);
@@ -72,9 +72,10 @@ impl App {
         f.render_widget(title, area);
     }
 
-    pub fn render_footer(area: Rect, f: &mut Frame) {
-        let footer =
-            Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.").centered();
+    pub fn render_footer(&self, area: Rect, f: &mut Frame) {
+        let status = self.status_rx.borrow().clone();
+        let footer = Paragraph::new(status).left_aligned();
+        // let footer = Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.").centered();
         f.render_widget(footer, area);
     }
 

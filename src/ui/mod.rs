@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use futures::future::join_all;
 use image::ImageReader;
 use ratatui::{
     DefaultTerminal,
@@ -13,15 +14,17 @@ use ratatui::{
     widgets::ListState,
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+use tokio::{sync::watch, task};
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
+    comic_info::ComicInfo,
     ui::{
         comic_form::{ComicFormState, ComicInfoForm},
         list::{Chapter, Series, SeriesList},
         spinner::SpinnerState,
     },
-    zip_util::get_comic_from_zip,
+    zip_util::{get_comic_from_zip, modify_zip_in_memory},
 };
 
 pub mod app;
@@ -62,6 +65,8 @@ pub struct App {
     last_selection_change: Option<Instant>,
     pending_selection: Option<PathBuf>,
     spinner: SpinnerState,
+    status_rx: watch::Receiver<String>,
+    status_tx: watch::Sender<String>,
 }
 
 impl Default for App {
@@ -82,6 +87,8 @@ impl App {
         let mut fields_state = ListState::default();
         fields_state.select_first();
 
+        let (status_tx, status_rx) = watch::channel("Idle".to_string());
+
         Ok(Self {
             should_exit: false,
             current_tab: Tab::SeriesList,
@@ -93,6 +100,8 @@ impl App {
             last_selection_change: None,
             pending_selection: None,
             spinner: SpinnerState::default(),
+            status_rx,
+            status_tx,
         })
     }
 
@@ -161,8 +170,21 @@ impl App {
 
     fn handle_key_metadata(&mut self, key: KeyEvent) {
         match key.code {
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let ComicFormState::Ready(comic) = &self.comic {
+                    let chapters = self.get_chapters_in_series();
+                    let comic_info = comic.to_comic_info();
+                    let status_tx = self.status_tx.clone();
+
+                    tokio::spawn(async move {
+                        if let Err(e) = save_series_info(chapters, comic_info, status_tx).await {
+                            eprintln!("Failed to save series info: {e}");
+                        }
+                    });
+                }
+            }
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.save_inputs_to_info();
+                let _ = self.save_chapter_info();
             }
             KeyCode::Enter if self.input_mode == InputMode::Normal => {
                 self.input_mode = InputMode::Editing;
@@ -412,10 +434,14 @@ impl App {
     }
 
     /// Save the inputs to the [`ComicInfo`]
-    fn save_inputs_to_info(&mut self) {
-        // TODO: Remove
-        std::fs::write("test.txt", format!("{:#?}", self.comic.to_comic_info()))
-            .unwrap_or_default();
+    fn save_chapter_info(&mut self) -> anyhow::Result<()> {
+        if let ComicFormState::Ready(comic) = &self.comic {
+            let path = self.get_current_chapter().path;
+            let xml = quick_xml::se::to_string(&comic.to_comic_info())?;
+            modify_zip_in_memory(path, xml.as_bytes())?;
+        }
+
+        Ok(())
     }
 
     fn get_current_series(&self) -> Series {
@@ -428,4 +454,42 @@ impl App {
         let current = series.chapters.state.selected().unwrap_or_default();
         series.chapters.items_state[current].clone()
     }
+
+    fn get_chapters_in_series(&self) -> Vec<Chapter> {
+        let series = self.get_current_series();
+        series.chapters.items_state
+    }
+}
+
+pub async fn save_series_info(
+    chapters: Vec<Chapter>,
+    comic_info: ComicInfo,
+    status_tx: watch::Sender<String>,
+) -> anyhow::Result<()> {
+    let mut tasks = Vec::new();
+
+    let chapters_len = chapters.len();
+    for (i, chapter) in chapters.iter().enumerate() {
+        let path = chapter.path.clone();
+        let info = comic_info.clone();
+        let title = chapter.title.clone().unwrap_or_default();
+
+        let _ = status_tx.send(format!("Processing {}/{}: {}", i + 1, chapters_len, title,));
+        let handle = task::spawn_blocking(move || -> anyhow::Result<()> {
+            let mut old = get_comic_from_zip(&path).unwrap_or_default();
+            old.update_shared_fields(&info);
+            let xml = quick_xml::se::to_string(&old)?;
+            modify_zip_in_memory(path, xml.as_bytes())?;
+            Ok(())
+        });
+
+        tasks.push(handle);
+    }
+
+    // run all tasks concurrently
+    for result in join_all(tasks).await {
+        result??;
+    }
+
+    Ok(())
 }

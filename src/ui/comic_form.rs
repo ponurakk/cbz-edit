@@ -12,7 +12,7 @@ impl ComicInfoForm {
     pub fn new(info: &ComicInfo) -> Self {
         let fields = vec![
             ("Title", Input::new(info.title.clone())),
-            ("Series", Input::new(info.series.clone())),
+            ("Series*", Input::new(info.series.clone())),
             (
                 "Number",
                 Input::new(info.number.map(|n| n.to_string()).unwrap_or_default()),
@@ -22,7 +22,7 @@ impl ComicInfoForm {
                 Input::new(info.volume.map(|v| v.to_string()).unwrap_or_default()),
             ),
             (
-                "Summary",
+                "Summary*",
                 Input::new(info.summary.clone().unwrap_or_default()),
             ),
             (
@@ -38,11 +38,11 @@ impl ComicInfoForm {
                 Input::new(info.day.map(|d| d.to_string()).unwrap_or_default()),
             ),
             (
-                "Writer",
+                "Writer*",
                 Input::new(info.writer.clone().unwrap_or_default()),
             ),
             (
-                "Penciller",
+                "Penciller*",
                 Input::new(info.penciller.clone().unwrap_or_default()),
             ),
             (
@@ -50,22 +50,22 @@ impl ComicInfoForm {
                 Input::new(info.translator.clone().unwrap_or_default()),
             ),
             (
-                "Publisher",
+                "Publisher*",
                 Input::new(info.publisher.clone().unwrap_or_default()),
             ),
-            ("Genre", Input::new(info.genre.clone().unwrap_or_default())),
-            ("Tags", Input::new(info.tags.clone().unwrap_or_default())),
-            ("Web", Input::new(info.web.clone().unwrap_or_default())),
+            ("Genre*", Input::new(info.genre.clone().unwrap_or_default())),
+            ("Tags*", Input::new(info.tags.clone().unwrap_or_default())),
+            ("Web*", Input::new(info.web.clone().unwrap_or_default())),
             (
                 "Page Count",
                 Input::new(info.page_count.map(|p| p.to_string()).unwrap_or_default()),
             ),
             (
-                "Language ISO",
+                "Language ISO*",
                 Input::new(info.language_iso.clone().unwrap_or_default()),
             ),
-            ("Manga", Input::new(format!("{:?}", info.manga))),
-            ("Age Rating", Input::new(format!("{:?}", info.age_rating))),
+            ("Manga*", Input::new(format!("{:?}", info.manga))),
+            ("Age Rating*", Input::new(format!("{:?}", info.age_rating))),
         ];
 
         Self {

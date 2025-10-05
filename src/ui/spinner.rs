@@ -1,5 +1,3 @@
-use std::{thread::sleep, time::Duration};
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

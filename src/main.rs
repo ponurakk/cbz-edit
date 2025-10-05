@@ -7,7 +7,8 @@ mod data;
 mod ui;
 mod zip_util;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let series = get_series_list("/run/media/ponurakk/Manga")?;
 
     let terminal = ratatui::init();

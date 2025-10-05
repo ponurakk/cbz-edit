@@ -122,7 +122,7 @@ impl<'de> Deserialize<'de> for ComicInfoAgeRating {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ComicInfo {
     /// Title of the book.
@@ -218,105 +218,17 @@ impl ComicInfo {
         }
     }
 
-    pub fn title(&mut self, title: &str) -> &mut Self {
-        self.title = title.to_string();
-        self
-    }
-
-    pub fn series(&mut self, series: &str) -> &mut Self {
-        self.series = series.to_string();
-        self
-    }
-
-    pub fn number(&mut self, number: Option<f32>) -> &mut Self {
-        self.number = number;
-        self
-    }
-
-    pub fn volume(&mut self, volume: Option<u32>) -> &mut Self {
-        self.volume = volume;
-        self
-    }
-
-    pub fn summary(&mut self, summary: &str) -> &mut Self {
-        self.summary = Some(summary.to_string());
-        self
-    }
-
-    pub fn year(&mut self, year: Option<u16>) -> &mut Self {
-        self.year = year;
-        self
-    }
-
-    pub fn month(&mut self, month: Option<u16>) -> &mut Self {
-        self.month = month;
-        self
-    }
-
-    pub fn day(&mut self, day: Option<u8>) -> &mut Self {
-        self.day = day;
-        self
-    }
-
-    pub fn date(&mut self, year: u16, month: u16, day: u8) -> &mut Self {
-        self.year = Some(year);
-        self.month = Some(month);
-        self.day = Some(day);
-        self
-    }
-
-    pub fn writer(&mut self, writer: &str) -> &mut Self {
-        self.writer = Some(writer.to_string());
-        self
-    }
-
-    pub fn penciller(&mut self, penciller: &str) -> &mut Self {
-        self.penciller = Some(penciller.to_string());
-        self
-    }
-
-    pub fn translator(&mut self, translator: &str) -> &mut Self {
-        self.translator = Some(translator.to_string());
-        self
-    }
-
-    pub fn publisher(&mut self, publisher: &str) -> &mut Self {
-        self.publisher = Some(publisher.to_string());
-        self
-    }
-
-    pub fn genre(&mut self, genre: &str) -> &mut Self {
-        self.genre = Some(genre.to_string());
-        self
-    }
-
-    pub fn tags(&mut self, tags: &str) -> &mut Self {
-        self.tags = Some(tags.to_string());
-        self
-    }
-
-    pub fn web(&mut self, web: &str) -> &mut Self {
-        self.web = Some(web.to_string());
-        self
-    }
-
-    pub fn page_count(&mut self, page_count: Option<u32>) -> &mut Self {
-        self.page_count = page_count;
-        self
-    }
-
-    pub fn language_iso(&mut self, language_iso: &str) -> &mut Self {
-        self.language_iso = Some(language_iso.to_string());
-        self
-    }
-
-    pub fn manga(&mut self, manga: ComicInfoManga) -> &mut Self {
-        self.manga = manga;
-        self
-    }
-
-    pub fn age_rating(&mut self, age_rating: ComicInfoAgeRating) -> &mut Self {
-        self.age_rating = age_rating;
-        self
+    pub fn update_shared_fields(&mut self, comic_info: &Self) {
+        self.series.clone_from(&comic_info.series);
+        self.summary.clone_from(&comic_info.summary);
+        self.writer.clone_from(&comic_info.writer);
+        self.penciller.clone_from(&comic_info.penciller);
+        self.publisher.clone_from(&comic_info.publisher);
+        self.genre.clone_from(&comic_info.genre);
+        self.tags.clone_from(&comic_info.tags);
+        self.web.clone_from(&comic_info.web);
+        self.language_iso.clone_from(&comic_info.language_iso);
+        self.manga = comic_info.manga;
+        self.age_rating = comic_info.age_rating;
     }
 }
