@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::future::join_all;
+use futures::{StreamExt, stream};
 use image::ImageReader;
 use ratatui::{
     DefaultTerminal,
@@ -14,7 +14,7 @@ use ratatui::{
     widgets::ListState,
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
-use tokio::{sync::watch, task};
+use tokio::sync::watch;
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
@@ -466,30 +466,50 @@ pub async fn save_series_info(
     comic_info: ComicInfo,
     status_tx: watch::Sender<String>,
 ) -> anyhow::Result<()> {
-    let mut tasks = Vec::new();
-
     let chapters_len = chapters.len();
-    for (i, chapter) in chapters.iter().enumerate() {
-        let path = chapter.path.clone();
-        let info = comic_info.clone();
-        let title = chapter.title.clone().unwrap_or_default();
+    // TODO: Make this in config
+    let concurrency_limit = num_cpus::get();
+    let total_start = Instant::now();
 
-        let _ = status_tx.send(format!("Processing {}/{}: {}", i + 1, chapters_len, title,));
-        let handle = task::spawn_blocking(move || -> anyhow::Result<()> {
-            let mut old = get_comic_from_zip(&path).unwrap_or_default();
-            old.update_shared_fields(&info);
-            let xml = quick_xml::se::to_string(&old)?;
-            modify_zip_in_memory(path, xml.as_bytes())?;
-            Ok(())
-        });
+    stream::iter(chapters.into_iter().enumerate())
+        .map(|(i, chapter)| {
+            let status_tx = status_tx.clone();
+            let info = comic_info.clone();
 
-        tasks.push(handle);
-    }
+            async move {
+                let path = chapter.path.clone();
+                let title = chapter
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| path.display().to_string());
 
-    // run all tasks concurrently
-    for result in join_all(tasks).await {
-        result??;
-    }
+                let _ = status_tx.send(format!("Processing {}/{}: {}", i + 1, chapters_len, title));
+
+                // run CPU-heavy / sync work
+                tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+                    // TODO: Get ComicInfo while modifing
+                    let mut old = get_comic_from_zip(&path).unwrap_or_default();
+                    old.update_shared_fields(&info);
+                    let xml = quick_xml::se::to_string(&old)?;
+                    modify_zip_in_memory(path, xml.as_bytes())?;
+                    Ok(())
+                })
+                .await??;
+
+                Ok::<_, anyhow::Error>(())
+            }
+        })
+        .buffer_unordered(concurrency_limit)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let total_duration = total_start.elapsed();
+
+    let _ = status_tx.send(format!(
+        "All done~ processed {chapters_len} chapters in {total_duration:.2?} 🎉"
+    ));
 
     Ok(())
 }
