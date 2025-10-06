@@ -6,7 +6,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::{StreamExt, stream};
 use image::ImageReader;
 use ratatui::{
     DefaultTerminal,
@@ -18,13 +17,13 @@ use tokio::sync::watch;
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
-    comic_info::ComicInfo,
+    chapter_manager::{save_chapter_info, save_series_info},
     ui::{
         comic_form::{ComicFormState, ComicInfoForm},
         list::{Chapter, Series, SeriesList},
         spinner::SpinnerState,
     },
-    zip_util::{get_comic_from_zip, modify_zip_in_memory},
+    zip_util::get_comic_from_zip,
 };
 
 pub mod app;
@@ -457,87 +456,4 @@ impl App {
         let series = self.get_current_series();
         series.chapters.items_state
     }
-}
-
-/// Save the inputs to the [`ComicInfo`]
-pub async fn save_chapter_info(
-    chapter: Chapter,
-    comic_info: ComicInfo,
-    status_tx: watch::Sender<String>,
-) -> anyhow::Result<()> {
-    let total_start = Instant::now();
-    let path = chapter.path.clone();
-    let title = chapter
-        .title
-        .clone()
-        .unwrap_or_else(|| path.display().to_string());
-    let _ = status_tx.send(format!("Processing: {title}"));
-
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let path = chapter.path;
-        let xml = quick_xml::se::to_string(&comic_info)?;
-        modify_zip_in_memory(&path, xml.as_bytes())?;
-
-        Ok(())
-    })
-    .await??;
-
-    let total_duration = total_start.elapsed();
-    let _ = status_tx.send(format!(
-        "All done~ processed chapter in {total_duration:.2?} 🎉"
-    ));
-    Ok(())
-}
-
-pub async fn save_series_info(
-    chapters: Vec<Chapter>,
-    comic_info: ComicInfo,
-    status_tx: watch::Sender<String>,
-) -> anyhow::Result<()> {
-    let chapters_len = chapters.len();
-    // TODO: Make this in config
-    let concurrency_limit = num_cpus::get();
-    let total_start = Instant::now();
-
-    stream::iter(chapters.into_iter().enumerate())
-        .map(|(i, chapter)| {
-            let status_tx = status_tx.clone();
-            let info = comic_info.clone();
-
-            async move {
-                let path = chapter.path.clone();
-                let title = chapter
-                    .title
-                    .clone()
-                    .unwrap_or_else(|| path.display().to_string());
-
-                let _ = status_tx.send(format!("Processing {}/{}: {}", i + 1, chapters_len, title));
-
-                // run CPU-heavy / sync work
-                tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-                    // TODO: Get ComicInfo while modifing
-                    let mut old = get_comic_from_zip(&path).unwrap_or_default();
-                    old.update_shared_fields(&info);
-                    let xml = quick_xml::se::to_string(&old)?;
-                    modify_zip_in_memory(&path, xml.as_bytes())?;
-                    Ok(())
-                })
-                .await??;
-
-                Ok::<_, anyhow::Error>(())
-            }
-        })
-        .buffer_unordered(concurrency_limit)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let total_duration = total_start.elapsed();
-
-    let _ = status_tx.send(format!(
-        "All done~ processed {chapters_len} chapters in {total_duration:.2?} 🎉"
-    ));
-
-    Ok(())
 }

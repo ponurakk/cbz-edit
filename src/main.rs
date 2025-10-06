@@ -2,6 +2,7 @@
 
 use crate::{data::get_series_list, ui::App};
 
+mod chapter_manager;
 mod comic_info;
 mod data;
 mod ui;

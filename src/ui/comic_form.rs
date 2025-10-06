@@ -191,14 +191,14 @@ impl ComicFormState {
     pub fn to_comic_info(&self) -> Option<ComicInfo> {
         match self {
             Self::Ready(comic) => Some(comic.to_comic_info()),
-            Self::Loading(_) => None,
+            Self::Loading(()) => None,
         }
     }
 
     pub fn active_input_mut(&mut self) -> Option<&mut Input> {
         match self {
             Self::Ready(comic) => Some(comic.active_input_mut()),
-            Self::Loading(_) => None,
+            Self::Loading(()) => None,
         }
     }
 }

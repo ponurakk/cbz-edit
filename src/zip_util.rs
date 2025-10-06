@@ -1,70 +1,181 @@
 use std::{
     fs,
-    io::{Cursor, Read, Write},
+    io::{Cursor, Read, Seek, Write},
     path::PathBuf,
 };
 
-use quick_xml::de::from_str;
+use quick_xml::{
+    Reader, Writer,
+    de::from_str,
+    events::{BytesText, Event},
+    se::to_string,
+};
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 use crate::comic_info::ComicInfo;
 
+/// Comment to add to `ComicInfo.xml`
+const COMMENT: &str = " Modified by cbz-edit ";
+
 /// Modify a flat ZIP (no subdirectories) in-memory by replacing the file at `target_path` with
-/// `new_content`. Returns a new ZIP as Vec<u8>
-pub fn modify_zip_in_memory(input_path: &PathBuf, new_content: &[u8]) -> anyhow::Result<()> {
-    let input_zip = fs::read(&input_path)?;
+/// `new_comic_info`.
+/// If `replace_all` is true, the contents of `new_comic_info` will be fully written to the file
+/// else only the shared fields will be written.
+fn modify_zip(
+    input_path: &PathBuf,
+    new_comic_info: &ComicInfo,
+    replace_all: bool,
+) -> anyhow::Result<()> {
+    let input_zip = fs::read(input_path)?;
     let reader = Cursor::new(&input_zip);
     let mut zip = ZipArchive::new(reader)?;
+    let mut out_buf = Vec::with_capacity(input_zip.len());
 
-    let mut out_buf: Vec<u8> = Vec::with_capacity(input_zip.len());
     {
         let cursor = Cursor::new(&mut out_buf);
         let mut writer = ZipWriter::new(cursor);
-
         let mut found_comic_info = false;
 
         for i in 0..zip.len() {
-            let mut src_file = zip.by_index(i)?;
-            let name = src_file.name().to_string();
-
-            let mut options =
-                SimpleFileOptions::default().compression_method(src_file.compression());
-
-            if let Some(mode) = src_file.unix_mode() {
-                options = options.unix_permissions(mode);
-            }
+            let mut src = zip.by_index(i)?;
+            let name = src.name().to_string();
+            let opts = file_options(&src);
 
             if name == "ComicInfo.xml" {
                 found_comic_info = true;
-                writer.start_file("ComicInfo.xml", options)?;
-                writer.write_all(new_content)?;
-            } else {
-                let mut buf = Vec::with_capacity(src_file.size() as usize);
-                src_file.read_to_end(&mut buf)?;
-                writer.start_file(name, options)?;
-                writer.write_all(&buf)?;
+                write_comic_info(&mut writer, &mut src, new_comic_info, replace_all, &opts)?;
+                continue;
             }
+
+            copy_file(&mut writer, &mut src, &name, &opts)?;
         }
 
-        // Add ComicInfo.xml if it wasn’t in the archive
         if !found_comic_info {
-            writer.start_file("ComicInfo.xml", SimpleFileOptions::default())?;
-            writer.write_all(new_content)?;
+            add_new_comic_info(&mut writer, new_comic_info, replace_all)?;
         }
 
         writer.finish()?;
     }
 
-    drop(zip);
-    drop(input_zip);
-
-    fs::write(&input_path, &out_buf)?;
-
-    drop(out_buf);
-
+    fs::write(input_path, &out_buf)?;
     Ok(())
 }
 
+/// Get the options for a file
+fn file_options<R>(src: &zip::read::ZipFile<R>) -> SimpleFileOptions
+where
+    R: Read,
+{
+    let mut opts = SimpleFileOptions::default().compression_method(src.compression());
+    if let Some(mode) = src.unix_mode() {
+        opts = opts.unix_permissions(mode);
+    }
+    opts
+}
+
+/// Updates `ComicInfo.xml` file from `src` and writes it to `writer`.
+/// If `replace_all` is false, only the shared fields will be written
+fn write_comic_info<W, R>(
+    writer: &mut ZipWriter<W>,
+    src: &mut zip::read::ZipFile<R>,
+    new_info: &ComicInfo,
+    replace_all: bool,
+    opts: &SimpleFileOptions,
+) -> anyhow::Result<()>
+where
+    W: Seek + Write,
+    R: Read,
+{
+    writer.start_file("ComicInfo.xml", *opts)?;
+    let xml = if replace_all {
+        to_string(new_info)?
+    } else {
+        let mut content = String::new();
+        src.read_to_string(&mut content)?;
+        let mut old: ComicInfo = from_str(&content).unwrap_or_default();
+        old.update_shared_fields(new_info);
+        to_string(&old)?
+    };
+
+    let modified_xml = add_xml_comment(&xml, COMMENT)?;
+    writer.write_all(modified_xml.as_bytes())?;
+    Ok(())
+}
+
+/// Writes a new `ComicInfo.xml` file to `writer`.
+/// If `replace_all` is false, only the shared fields will be written
+fn add_new_comic_info<W>(
+    writer: &mut ZipWriter<W>,
+    new_info: &ComicInfo,
+    replace_all: bool,
+) -> anyhow::Result<()>
+where
+    W: Seek + Write,
+{
+    writer.start_file("ComicInfo.xml", SimpleFileOptions::default())?;
+    let xml = if replace_all {
+        to_string(new_info)?
+    } else {
+        let mut old = ComicInfo::default();
+        old.update_shared_fields(new_info);
+        to_string(&old)?
+    };
+
+    let modified_xml = add_xml_comment(&xml, COMMENT)?;
+    writer.write_all(modified_xml.as_bytes())?;
+    Ok(())
+}
+
+/// Copies a file from `src` to `writer`
+fn copy_file<W, R>(
+    writer: &mut ZipWriter<W>,
+    src: &mut zip::read::ZipFile<R>,
+    name: &str,
+    opts: &SimpleFileOptions,
+) -> anyhow::Result<()>
+where
+    W: Seek + Write,
+    R: Read,
+{
+    let mut buf = Vec::with_capacity(usize::try_from(src.size())?);
+    src.read_to_end(&mut buf)?;
+    writer.start_file(name, *opts)?;
+    writer.write_all(&buf)?;
+    Ok(())
+}
+
+/// Inserts an XML comment at the top of an existing XML string using quick-xml.
+fn add_xml_comment(xml: &str, comment: &str) -> anyhow::Result<String> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    let mut writer = Writer::new(Cursor::new(Vec::new()));
+    writer.write_event(Event::Comment(BytesText::new(comment)))?;
+
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf)? {
+            Event::Eof => break,
+            e => writer.write_event(e)?,
+        }
+        buf.clear();
+    }
+
+    Ok(String::from_utf8(writer.into_inner().into_inner())?)
+}
+
+/// Modify a flat ZIP (no subdirectories) in-memory by replacing the file at `target_path` with
+/// `new_comic_info`.
+pub fn modify_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
+    modify_zip(path, new_comic_info, false)
+}
+
+/// Replace the file at `target_path` with `new_comic_info`.
+pub fn replace_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
+    modify_zip(path, new_comic_info, true)
+}
+
+/// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)
 pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<ComicInfo> {
     let input_zip = fs::read(path)?;
     let reader = Cursor::new(input_zip);
