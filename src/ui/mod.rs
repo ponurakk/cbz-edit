@@ -184,7 +184,16 @@ impl App {
                 }
             }
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                let _ = self.save_chapter_info();
+                if let ComicFormState::Ready(comic) = &self.comic {
+                    let chapter = self.get_current_chapter();
+                    let comic_info = comic.to_comic_info();
+                    let status_tx = self.status_tx.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = save_chapter_info(chapter, comic_info, status_tx).await {
+                            eprintln!("Failed to save series info: {e}");
+                        }
+                    });
+                }
             }
             KeyCode::Enter if self.input_mode == InputMode::Normal => {
                 self.input_mode = InputMode::Editing;
@@ -433,17 +442,6 @@ impl App {
         }
     }
 
-    /// Save the inputs to the [`ComicInfo`]
-    fn save_chapter_info(&mut self) -> anyhow::Result<()> {
-        if let ComicFormState::Ready(comic) = &self.comic {
-            let path = self.get_current_chapter().path;
-            let xml = quick_xml::se::to_string(&comic.to_comic_info())?;
-            modify_zip_in_memory(path, xml.as_bytes())?;
-        }
-
-        Ok(())
-    }
-
     fn get_current_series(&self) -> Series {
         let current = self.series_list.state.selected().unwrap_or_default();
         self.series_list.items_state[current].clone()
@@ -459,6 +457,36 @@ impl App {
         let series = self.get_current_series();
         series.chapters.items_state
     }
+}
+
+/// Save the inputs to the [`ComicInfo`]
+pub async fn save_chapter_info(
+    chapter: Chapter,
+    comic_info: ComicInfo,
+    status_tx: watch::Sender<String>,
+) -> anyhow::Result<()> {
+    let total_start = Instant::now();
+    let path = chapter.path.clone();
+    let title = chapter
+        .title
+        .clone()
+        .unwrap_or_else(|| path.display().to_string());
+    let _ = status_tx.send(format!("Processing: {title}"));
+
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let path = chapter.path;
+        let xml = quick_xml::se::to_string(&comic_info)?;
+        modify_zip_in_memory(&path, xml.as_bytes())?;
+
+        Ok(())
+    })
+    .await??;
+
+    let total_duration = total_start.elapsed();
+    let _ = status_tx.send(format!(
+        "All done~ processed chapter in {total_duration:.2?} 🎉"
+    ));
+    Ok(())
 }
 
 pub async fn save_series_info(
@@ -491,7 +519,7 @@ pub async fn save_series_info(
                     let mut old = get_comic_from_zip(&path).unwrap_or_default();
                     old.update_shared_fields(&info);
                     let xml = quick_xml::se::to_string(&old)?;
-                    modify_zip_in_memory(path, xml.as_bytes())?;
+                    modify_zip_in_memory(&path, xml.as_bytes())?;
                     Ok(())
                 })
                 .await??;

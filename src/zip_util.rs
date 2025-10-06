@@ -11,7 +11,7 @@ use crate::comic_info::ComicInfo;
 
 /// Modify a flat ZIP (no subdirectories) in-memory by replacing the file at `target_path` with
 /// `new_content`. Returns a new ZIP as Vec<u8>
-pub fn modify_zip_in_memory(input_path: PathBuf, new_content: &[u8]) -> anyhow::Result<()> {
+pub fn modify_zip_in_memory(input_path: &PathBuf, new_content: &[u8]) -> anyhow::Result<()> {
     let input_zip = fs::read(&input_path)?;
     let reader = Cursor::new(&input_zip);
     let mut zip = ZipArchive::new(reader)?;
