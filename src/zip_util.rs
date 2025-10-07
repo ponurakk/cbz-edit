@@ -17,6 +17,9 @@ use crate::comic_info::ComicInfo;
 /// Comment to add to `ComicInfo.xml`
 const COMMENT: &str = " Modified by cbz-edit ";
 
+/// Type alias for `ComicInfo` update callback
+pub type ComicInfoUpdater = fn(old: ComicInfo, new: &ComicInfo) -> ComicInfo;
+
 /// Modify a flat ZIP (no subdirectories) in-memory by replacing the file at `target_path` with
 /// `new_comic_info`.
 /// If `replace_all` is true, the contents of `new_comic_info` will be fully written to the file
@@ -24,7 +27,7 @@ const COMMENT: &str = " Modified by cbz-edit ";
 fn modify_zip(
     input_path: &PathBuf,
     new_comic_info: &ComicInfo,
-    replace_all: bool,
+    updater: ComicInfoUpdater,
 ) -> anyhow::Result<()> {
     let input_zip = fs::read(input_path)?;
     let reader = Cursor::new(&input_zip);
@@ -43,7 +46,7 @@ fn modify_zip(
 
             if name == "ComicInfo.xml" {
                 found_comic_info = true;
-                write_comic_info(&mut writer, &mut src, new_comic_info, replace_all, &opts)?;
+                write_comic_info(&mut writer, &mut src, new_comic_info, updater, &opts)?;
                 continue;
             }
 
@@ -51,7 +54,7 @@ fn modify_zip(
         }
 
         if !found_comic_info {
-            add_new_comic_info(&mut writer, new_comic_info, replace_all)?;
+            add_new_comic_info(&mut writer, new_comic_info, updater)?;
         }
 
         writer.finish()?;
@@ -79,7 +82,7 @@ fn write_comic_info<W, R>(
     writer: &mut ZipWriter<W>,
     src: &mut zip::read::ZipFile<R>,
     new_info: &ComicInfo,
-    replace_all: bool,
+    updater: ComicInfoUpdater,
     opts: &SimpleFileOptions,
 ) -> anyhow::Result<()>
 where
@@ -87,15 +90,11 @@ where
     R: Read,
 {
     writer.start_file("ComicInfo.xml", *opts)?;
-    let xml = if replace_all {
-        to_string(new_info)?
-    } else {
-        let mut content = String::new();
-        src.read_to_string(&mut content)?;
-        let mut old: ComicInfo = from_str(&content).unwrap_or_default();
-        old.update_shared_fields(new_info);
-        to_string(&old)?
-    };
+    let mut content = String::new();
+    src.read_to_string(&mut content)?;
+    let old: ComicInfo = from_str(&content).unwrap_or_default();
+    let updated_info = updater(old, new_info);
+    let xml = to_string(&updated_info)?;
 
     let modified_xml = add_xml_comment(&xml, COMMENT)?;
     writer.write_all(modified_xml.as_bytes())?;
@@ -107,19 +106,15 @@ where
 fn add_new_comic_info<W>(
     writer: &mut ZipWriter<W>,
     new_info: &ComicInfo,
-    replace_all: bool,
+    updater: ComicInfoUpdater,
 ) -> anyhow::Result<()>
 where
     W: Seek + Write,
 {
     writer.start_file("ComicInfo.xml", SimpleFileOptions::default())?;
-    let xml = if replace_all {
-        to_string(new_info)?
-    } else {
-        let mut old = ComicInfo::default();
-        old.update_shared_fields(new_info);
-        to_string(&old)?
-    };
+    let old = ComicInfo::default();
+    let updated_info = updater(old, new_info);
+    let xml = to_string(&updated_info)?;
 
     let modified_xml = add_xml_comment(&xml, COMMENT)?;
     writer.write_all(modified_xml.as_bytes())?;
@@ -164,15 +159,40 @@ fn add_xml_comment(xml: &str, comment: &str) -> anyhow::Result<String> {
     Ok(String::from_utf8(writer.into_inner().into_inner())?)
 }
 
+/// Overwrites everything
+fn replace_all_updater(_old: ComicInfo, new: &ComicInfo) -> ComicInfo {
+    new.clone()
+}
+
+/// Updates only shared fields
+fn update_shared_updater(mut old: ComicInfo, new: &ComicInfo) -> ComicInfo {
+    old.update_shared_fields(new);
+    old
+}
+
+/// Updates fields derived from filename
+fn derive_updater(mut old: ComicInfo, new: &ComicInfo) -> ComicInfo {
+    old.volume = new.volume;
+    old.number = new.number;
+    old.translator.clone_from(&new.translator);
+    old.title.clone_from(&new.title);
+    old
+}
+
 /// Modify a flat ZIP (no subdirectories) in-memory by replacing the file at `target_path` with
 /// `new_comic_info`.
 pub fn modify_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
-    modify_zip(path, new_comic_info, false)
+    modify_zip(path, new_comic_info, update_shared_updater)
 }
 
 /// Replace the file at `target_path` with `new_comic_info`.
 pub fn replace_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
-    modify_zip(path, new_comic_info, true)
+    modify_zip(path, new_comic_info, replace_all_updater)
+}
+
+/// Replace the file at `target_path` with `new_comic_info`.
+pub fn derive_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
+    modify_zip(path, new_comic_info, derive_updater)
 }
 
 /// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)
