@@ -67,7 +67,7 @@ impl ComicInfoForm {
             ("Manga*", Input::new(format!("{:?}", info.manga))),
             ("Age Rating*", Input::new(format!("{:?}", info.age_rating))),
             (
-                "Count",
+                "Count*",
                 Input::new(info.count.map(|c| c.to_string()).unwrap_or_default()),
             ),
         ];

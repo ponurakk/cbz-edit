@@ -118,9 +118,16 @@ impl App {
             return;
         };
 
+        let selected_count = if series.chapters.selected.is_empty() {
+            String::new()
+        } else {
+            format!("{}/", series.chapters.selected.len())
+        };
+
         title.push_span(Span::raw(format!(
-            "({}) ",
-            series.chapters.items_state.len()
+            "({}{}) ",
+            selected_count,
+            series.chapters.items_state.len(),
         )));
 
         let block = Block::new()
