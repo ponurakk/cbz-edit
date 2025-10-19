@@ -122,6 +122,9 @@ impl<'de> Deserialize<'de> for ComicInfoAgeRating {
     }
 }
 
+/// Information about a comic book
+///
+/// From https://anansi-project.github.io/docs/comicinfo/documentation
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ComicInfo {
@@ -205,8 +208,13 @@ pub struct ComicInfo {
     #[serde(default)]
     pub manga: ComicInfoManga,
 
+    /// The age rating of the book.
     #[serde(default)]
     pub age_rating: ComicInfoAgeRating,
+
+    /// The total number of books in the series.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<u32>,
 }
 
 impl ComicInfo {
@@ -230,5 +238,6 @@ impl ComicInfo {
         self.language_iso.clone_from(&comic_info.language_iso);
         self.manga = comic_info.manga;
         self.age_rating = comic_info.age_rating;
+        self.count = comic_info.count;
     }
 }

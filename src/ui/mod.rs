@@ -18,6 +18,8 @@ use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
     chapter_manager::{save_chapter_info, save_series_info, update_chapter_numbering},
+    config::Config,
+    komga::manager::KomgaManager,
     ui::{
         comic_form::{ComicFormState, ComicInfoForm},
         list::{Chapter, Series, SeriesList},
@@ -56,6 +58,7 @@ pub struct App {
     current_tab: Tab,
     series_list: SeriesList,
     image: StatefulProtocol,
+    komga_manager: KomgaManager,
 
     input_mode: InputMode,
 
@@ -70,13 +73,13 @@ pub struct App {
 
 impl Default for App {
     fn default() -> Self {
-        Self::new(vec![]).expect("Failed to create app")
+        Self::new(vec![], &Config::default()).expect("Failed to create app")
     }
 }
 
 impl App {
     /// Create a new application
-    pub fn new(series_list: Vec<Series>) -> anyhow::Result<Self> {
+    pub fn new(series_list: Vec<Series>, config: &Config) -> anyhow::Result<Self> {
         let dyn_img =
             ImageReader::open("tumblr_586a38213908da1a27f7d49cf4fed52b_ba0d374c_1280.jpg")?
                 .decode()?;
@@ -93,6 +96,7 @@ impl App {
             current_tab: Tab::SeriesList,
             series_list: SeriesList::from_iter(series_list),
             image: protocol,
+            komga_manager: KomgaManager::new(&config.komga.url, &config.komga.api_key)?,
             comic: ComicFormState::Loading(()),
             input_mode: InputMode::Normal,
             comic_rx: None,
