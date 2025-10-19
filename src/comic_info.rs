@@ -62,8 +62,10 @@ pub enum ComicInfoAgeRating {
     /// Shonen / Shojo
     Teen,
     /// Seinen / Josei
+    #[serde(rename = "Mature 17+")]
     Mature17Plus,
     /// Hentai / Erotic
+    #[serde(rename = "Adults Only 18+")]
     AdultsOnly18Plus,
 }
 
@@ -124,7 +126,7 @@ impl<'de> Deserialize<'de> for ComicInfoAgeRating {
 
 /// Information about a comic book
 ///
-/// From https://anansi-project.github.io/docs/comicinfo/documentation
+/// From <https://anansi-project.github.io/docs/comicinfo/documentation>
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct ComicInfo {

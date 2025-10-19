@@ -64,8 +64,8 @@ impl ComicInfoForm {
                 "Language ISO*",
                 Input::new(info.language_iso.clone().unwrap_or_default()),
             ),
-            ("Manga*", Input::new(format!("{:?}", info.manga))),
-            ("Age Rating*", Input::new(format!("{:?}", info.age_rating))),
+            ("Manga*", Input::new(info.manga.to_string())),
+            ("Age Rating*", Input::new(info.age_rating.to_string())),
             (
                 "Count*",
                 Input::new(info.count.map(|c| c.to_string()).unwrap_or_default()),
