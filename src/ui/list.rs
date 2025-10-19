@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use ratatui::widgets::{ListItem, ListState, ScrollbarState};
 
@@ -140,6 +140,9 @@ pub struct ChapterList {
 
     /// State of the scrollbar
     pub scroll_state: ScrollbarState,
+
+    /// Custom field to track multiple selections
+    pub selected: HashSet<usize>,
 }
 
 impl FromIterator<Chapter> for ChapterList {
@@ -154,23 +157,41 @@ impl FromIterator<Chapter> for ChapterList {
             items_state: items,
             state,
             scroll_state: ScrollbarState::default().content_length(len),
+            selected: HashSet::new(),
         }
     }
 }
 
-impl From<&Chapter> for ListItem<'_> {
-    fn from(value: &Chapter) -> Self {
-        ListItem::new(format!(
-            "{:#5.}: {}",
-            value.chapter.unwrap_or_default(),
-            value.title.clone().unwrap_or(
-                value
-                    .path
+impl ChapterList {
+    pub fn toggle_selected(&mut self) {
+        if let Some(index) = self.state.selected()
+            && !self.selected.insert(index)
+        {
+            // Already selected → unselect it
+            self.selected.remove(&index);
+        }
+    }
+}
+
+impl Chapter {
+    pub fn get_title(&self, selected: bool) -> String {
+        let selected_char = if selected {
+            String::from("▌")
+        } else {
+            String::from(" ")
+        };
+
+        format!(
+            "{}{:#5.}: {}",
+            selected_char,
+            self.chapter.unwrap_or_default(),
+            self.title.clone().unwrap_or(
+                self.path
                     .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string(),
             )
-        ))
+        )
     }
 }

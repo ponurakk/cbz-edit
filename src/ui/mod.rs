@@ -166,6 +166,7 @@ impl App {
                 KeyCode::Char('G') | KeyCode::End => self.select_last(),
                 KeyCode::Char('l') | KeyCode::Enter => self.next_tab(),
                 KeyCode::Char('h') => self.previous_tab(),
+                KeyCode::Char(' ') if self.current_tab == Tab::ChaptersList => self.toggle_select(),
                 _ => {}
             }
         }
@@ -388,6 +389,15 @@ impl App {
         }
     }
 
+    /// Toggle the selection of the current chapter
+    fn toggle_select(&mut self) {
+        let current = self.series_list.state.selected().unwrap_or_default();
+        if let Some(series) = self.series_list.items_state.get_mut(current) {
+            series.chapters.toggle_selected();
+            self.select_next();
+        }
+    }
+
     /// Update the series scroll
     fn update_series_scroll(&mut self) {
         let current = self.series_list.state.selected().unwrap_or_default();
@@ -469,6 +479,16 @@ impl App {
 
     fn get_chapters_in_series(&self) -> Vec<Chapter> {
         let series = self.get_current_series();
-        series.chapters.items_state
+
+        if series.chapters.selected.is_empty() {
+            series.chapters.items_state.clone()
+        } else {
+            series
+                .chapters
+                .selected
+                .iter()
+                .filter_map(|&i| series.chapters.items_state.get(i).cloned())
+                .collect()
+        }
     }
 }

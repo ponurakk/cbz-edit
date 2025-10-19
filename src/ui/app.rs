@@ -128,7 +128,26 @@ impl App {
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
 
-        let items: Vec<ListItem> = series.chapters.items.iter().map(ListItem::from).collect();
+        let items: Vec<ListItem> = series
+            .chapters
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, chapter)| {
+                let mut item =
+                    ListItem::new(chapter.get_title(series.chapters.selected.contains(&i)));
+
+                if series.chapters.selected.contains(&i) {
+                    item = item.style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    );
+                }
+
+                item
+            })
+            .collect();
 
         let list = List::new(items)
             .block(block)
