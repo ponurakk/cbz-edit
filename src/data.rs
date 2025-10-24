@@ -108,9 +108,11 @@ pub fn parse_filename(path: PathBuf, filename: &str) -> Chapter {
             || low.starts_with("chapter")
             || low.starts_with("ep")
             || low.starts_with("episode")
+            || low.starts_with("#")
         {
             // Remove prefix letters like "Ch", "Chap.", etc.
-            let mut num_str = tok.trim_start_matches(|c: char| c.is_alphabetic() || c == '.');
+            let mut num_str =
+                tok.trim_start_matches(|c: char| c.is_alphabetic() || c == '.' || c == '#');
 
             // Sometimes chapter number is in next token
             if num_str.is_empty()
