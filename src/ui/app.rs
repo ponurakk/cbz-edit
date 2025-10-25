@@ -15,7 +15,7 @@ use ratatui::{
 use ratatui_image::StatefulImage;
 use tui_input::Input;
 
-use crate::ui::{App, ComicFormState, InputMode, Tab, spinner::Spinner};
+use crate::ui::{App, ComicFormState, InputMode, Tab, popup::HelpPopup, spinner::Spinner};
 
 const SELECTED_STYLE: Style = Style::new()
     .fg(CYAN.c600)
@@ -63,6 +63,10 @@ impl App {
         self.render_chapters(chapters_area, frame);
         self.render_data_input(data_input_area, frame);
         self.render_info(data_info_area, frame);
+
+        if self.show_help {
+            App::render_help(main_area, frame);
+        }
     }
 }
 
@@ -317,5 +321,31 @@ impl App {
             let y = area.y + 1; // below top border
             f.set_cursor_position((x, y));
         }
+    }
+
+    pub fn render_help(area: Rect, f: &mut Frame) {
+        let popup = HelpPopup::default().lines(vec![
+            ("k/↑", "Go Up"),
+            ("j/↓", "Go Down"),
+            ("h/←", "Change pane to left"),
+            ("l/→", "Change pane to right"),
+            ("g", "Go to top"),
+            ("G", "Go to bottom"),
+            ("<space>", "Toggle selection"),
+            ("?", "Toggle help"),
+            ("Ctrl+c", "Close"),
+            ("Ctrl+f", "Save chapter numberings"),
+            ("Ctrl+s", "Save chapter info"),
+            ("Ctrl+d", "Save series info"),
+        ]);
+
+        let popup_area = Rect {
+            x: area.width / 4,
+            y: area.height / 4,
+            width: area.width / 2,
+            height: area.height / 2,
+        };
+
+        f.render_widget(popup, popup_area);
     }
 }

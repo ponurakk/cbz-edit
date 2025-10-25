@@ -31,6 +31,7 @@ use crate::{
 pub mod app;
 pub mod comic_form;
 pub mod list;
+pub mod popup;
 pub mod spinner;
 
 /// Debounce delay for chapter selection
@@ -59,6 +60,7 @@ pub struct App {
     series_list: SeriesList,
     image: StatefulProtocol,
     komga_manager: KomgaManager,
+    show_help: bool,
 
     input_mode: InputMode,
 
@@ -97,6 +99,7 @@ impl App {
             series_list: SeriesList::from_iter(series_list),
             image: protocol,
             komga_manager: KomgaManager::new(&config.komga.url, &config.komga.api_key)?,
+            show_help: false,
             comic: ComicFormState::Loading(()),
             input_mode: InputMode::Normal,
             comic_rx: None,
@@ -167,6 +170,7 @@ impl App {
                 KeyCode::Char('l') | KeyCode::Enter => self.next_tab(),
                 KeyCode::Char('h') => self.previous_tab(),
                 KeyCode::Char(' ') if self.current_tab == Tab::ChaptersList => self.toggle_select(),
+                KeyCode::Char('?') => self.toggle_help(),
                 _ => {}
             }
         }
@@ -396,6 +400,10 @@ impl App {
             series.chapters.toggle_selected();
             self.select_next();
         }
+    }
+
+    fn toggle_help(&mut self) {
+        self.show_help = !self.show_help;
     }
 
     /// Update the series scroll
