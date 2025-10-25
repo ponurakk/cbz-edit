@@ -2,7 +2,6 @@
 
 use std::{
     path::PathBuf,
-    sync::mpsc,
     time::{Duration, Instant},
 };
 
@@ -20,10 +19,9 @@ use crate::{
     config::Config,
     komga::manager::KomgaManager,
     ui::{
-        comic_form::{ComicFormState, ComicInfoForm},
+        comic_form::{ComicFormState, ComicInfoForm, ComicInfoManager},
         image::{ImageManager, ImagesState},
         list::{Chapter, Series, SeriesList},
-        spinner::SpinnerState,
     },
     zip_util::get_comic_from_zip,
 };
@@ -71,26 +69,20 @@ pub struct App {
     /// Komga manager
     komga_manager: KomgaManager,
 
+    /// Comic form state
+    comic_manager: ComicInfoManager,
+
     /// Help flag
     show_help: bool,
 
     /// Current input mode
     input_mode: InputMode,
 
-    /// Data from `ComicInfo`
-    comic: ComicFormState,
-
-    /// Channel for receiving comic info
-    comic_rx: Option<mpsc::Receiver<ComicInfoForm>>,
-
     /// Last time the selection changed
     last_selection_change: Option<Instant>,
 
     /// Pending selection to update
     pending_selection: Option<PathBuf>,
-
-    /// Spinner
-    spinner: SpinnerState,
 
     /// Reciever channel for status
     status_rx: watch::Receiver<String>,
@@ -121,13 +113,11 @@ impl App {
             series_list: SeriesList::from_iter(series_list),
             image_manager: ImageManager::new(picker),
             komga_manager: KomgaManager::new(&config.komga.url, &config.komga.api_key)?,
+            comic_manager: ComicInfoManager::new(),
             show_help: false,
-            comic: ComicFormState::Loading,
             input_mode: InputMode::Normal,
-            comic_rx: None,
             last_selection_change: None,
             pending_selection: None,
-            spinner: SpinnerState::default(),
             status_rx,
             status_tx,
         })
@@ -166,7 +156,7 @@ impl App {
             self.pending_selection = None;
         }
 
-        self.spinner.tick();
+        self.comic_manager.spinner.tick();
         self.image_manager.spinner.tick();
     }
 
@@ -205,7 +195,7 @@ impl App {
     fn handle_key_metadata(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic {
+                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
                     let chapters = self.get_chapters_in_series();
                     let comic_info = comic.to_comic_info();
                     let status_tx = self.status_tx.clone();
@@ -218,7 +208,7 @@ impl App {
                 }
             }
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic {
+                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
                     let chapter = self.get_current_chapter();
                     let comic_info = comic.to_comic_info();
                     let status_tx = self.status_tx.clone();
@@ -230,7 +220,7 @@ impl App {
                 }
             }
             KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(_) = &self.comic {
+                if let ComicFormState::Ready(_) = &self.comic_manager.comic {
                     let chapters = self.get_chapters_in_series();
                     let status_tx = self.status_tx.clone();
                     tokio::spawn(async move {
@@ -247,13 +237,17 @@ impl App {
                 self.input_mode = InputMode::Normal;
             }
             KeyCode::Char('j') | KeyCode::Tab if self.input_mode == InputMode::Normal => {
-                self.comic.next();
+                self.comic_manager.comic.next();
             }
             KeyCode::Char('k') | KeyCode::BackTab if self.input_mode == InputMode::Normal => {
-                self.comic.prev();
+                self.comic_manager.comic.prev();
             }
-            KeyCode::Char('l') if self.input_mode == InputMode::Normal => self.comic.next_side(),
-            KeyCode::Char('h') if self.input_mode == InputMode::Normal => self.comic.prev_side(),
+            KeyCode::Char('l') if self.input_mode == InputMode::Normal => {
+                self.comic_manager.comic.next_side();
+            }
+            KeyCode::Char('h') if self.input_mode == InputMode::Normal => {
+                self.comic_manager.comic.prev_side();
+            }
 
             KeyCode::Esc => {
                 if self.input_mode == InputMode::Editing {
@@ -264,7 +258,7 @@ impl App {
             }
             _ => {
                 if self.input_mode == InputMode::Editing
-                    && let Some(input) = self.comic.active_input_mut()
+                    && let Some(input) = self.comic_manager.comic.active_input_mut()
                 {
                     input.handle_event(&Event::Key(key));
                 }
@@ -467,7 +461,7 @@ impl App {
             }
         };
 
-        self.comic = ComicFormState::Loading;
+        self.comic_manager.comic = ComicFormState::Loading;
         self.last_selection_change = Some(Instant::now());
         self.pending_selection = current_chapter_path;
     }
@@ -480,8 +474,8 @@ impl App {
     fn update_comic_info(&mut self, chapter_path: Option<PathBuf>) {
         if let Some(path) = chapter_path {
             let (comic_tx, comic_rx) = std::sync::mpsc::channel();
-            self.comic_rx = Some(comic_rx);
-            self.comic = ComicFormState::Loading;
+            self.comic_manager.comic_rx = Some(comic_rx);
+            self.comic_manager.comic = ComicFormState::Loading;
 
             let (images_tx, images_rx) = std::sync::mpsc::channel();
             self.image_manager.images_rx = Some(images_rx);
@@ -497,11 +491,11 @@ impl App {
     }
 
     fn poll_comic_info(&mut self) {
-        if let Some(rx) = &self.comic_rx
+        if let Some(rx) = &self.comic_manager.comic_rx
             && let Ok(form) = rx.try_recv()
         {
-            self.comic = ComicFormState::Ready(form);
-            self.comic_rx = None;
+            self.comic_manager.comic = ComicFormState::Ready(form);
+            self.comic_manager.comic_rx = None;
         }
     }
 

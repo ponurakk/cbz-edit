@@ -232,8 +232,12 @@ impl App {
     }
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {
-        let ComicFormState::Ready(ref comic) = self.comic else {
-            f.render_stateful_widget(Spinner::new(" Edit Metadata "), area, &mut self.spinner);
+        let ComicFormState::Ready(ref comic) = self.comic_manager.comic else {
+            f.render_stateful_widget(
+                Spinner::new(" Edit Metadata "),
+                area,
+                &mut self.comic_manager.spinner,
+            );
             return;
         };
 
@@ -326,6 +330,7 @@ impl App {
 
         let width = area.width.max(3) - 3;
         let scroll = input.visual_scroll(width as usize);
+        #[allow(clippy::cast_possible_truncation)]
         let widget = Paragraph::new(input.value())
             .scroll((0, scroll as u16))
             .block(block);
@@ -356,6 +361,7 @@ impl App {
         f.render_widget(border_paragraph, border_area);
 
         // Cursor positioning
+        #[allow(clippy::cast_possible_truncation)]
         if idx == active_index && self.input_mode == InputMode::Editing {
             let x = if input.cursor() >= (area.width - 2).into() {
                 area.x + area.width - 2

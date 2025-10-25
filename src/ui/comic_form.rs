@@ -1,6 +1,32 @@
+use std::sync::mpsc;
+
 use tui_input::Input;
 
-use crate::comic_info::{ComicInfo, ComicInfoAgeRating, ComicInfoManga};
+use crate::{
+    comic_info::{ComicInfo, ComicInfoAgeRating, ComicInfoManga},
+    ui::spinner::SpinnerState,
+};
+
+pub struct ComicInfoManager {
+    /// Data from `ComicInfo`
+    pub comic: ComicFormState,
+
+    /// Channel for receiving comic info
+    pub comic_rx: Option<mpsc::Receiver<ComicInfoForm>>,
+
+    /// Spinner
+    pub spinner: SpinnerState,
+}
+
+impl ComicInfoManager {
+    pub fn new() -> Self {
+        Self {
+            comic: ComicFormState::Loading,
+            comic_rx: None,
+            spinner: SpinnerState::default(),
+        }
+    }
+}
 
 /// Current comic selected on chapter list
 pub struct ComicInfoForm {
@@ -190,13 +216,6 @@ impl ComicFormState {
     pub fn prev_side(&mut self) {
         if let Self::Ready(comic) = self {
             comic.prev_side();
-        }
-    }
-
-    pub fn to_comic_info(&self) -> Option<ComicInfo> {
-        match self {
-            Self::Ready(comic) => Some(comic.to_comic_info()),
-            Self::Loading => None,
         }
     }
 

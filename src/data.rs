@@ -108,7 +108,7 @@ pub fn parse_filename(path: PathBuf, filename: &str) -> Chapter {
             || low.starts_with("chapter")
             || low.starts_with("ep")
             || low.starts_with("episode")
-            || low.starts_with("#")
+            || low.starts_with('#')
         {
             // Remove prefix letters like "Ch", "Chap.", etc.
             let mut num_str =
