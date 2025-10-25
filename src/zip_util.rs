@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{Cursor, Read, Seek, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use quick_xml::{
@@ -196,17 +196,48 @@ pub fn derive_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::
 }
 
 /// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)
-pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<ComicInfo> {
+pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<u8>>)> {
     let input_zip = fs::read(path)?;
     let reader = Cursor::new(input_zip);
     let mut archive = ZipArchive::new(reader)?;
 
-    match archive.by_name("ComicInfo.xml") {
+    let comic_info = match archive.by_name("ComicInfo.xml") {
         Ok(mut file) => {
             let mut content = String::new();
             file.read_to_string(&mut content)?;
-            Ok(from_str(&content).unwrap_or_default())
+            from_str(&content).unwrap_or_default()
         }
-        Err(_) => Ok(ComicInfo::default()), // file not found
+        Err(_) => ComicInfo::default(), // file not found
+    };
+
+    let mut images: Vec<(usize, Vec<u8>)> = Vec::new();
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let name = file.name().to_string();
+
+        if name.eq_ignore_ascii_case("ComicInfo.xml") {
+            continue;
+        }
+
+        let is_ext = |extension: &str| -> bool {
+            Path::new(&name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
+        };
+
+        if (is_ext("jpg") || is_ext("jpeg") || is_ext("png") || is_ext("webp"))
+            && let Some(number_str) = name.split('.').next()
+            && let Ok(number) = number_str.parse::<usize>()
+        {
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer)?;
+            images.push((number, buffer));
+        }
     }
+
+    images.sort_by_key(|(number, _)| *number);
+    let images: Vec<Vec<u8>> = images.into_iter().map(|(_, buf)| buf).collect();
+
+    Ok((comic_info, images))
 }

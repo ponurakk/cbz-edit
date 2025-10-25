@@ -6,13 +6,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use image::ImageReader;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     widgets::ListState,
 };
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+use ratatui_image::picker::Picker;
 use tokio::sync::watch;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -22,6 +21,7 @@ use crate::{
     komga::manager::KomgaManager,
     ui::{
         comic_form::{ComicFormState, ComicInfoForm},
+        image::{ImageManager, ImagesState},
         list::{Chapter, Series, SeriesList},
         spinner::SpinnerState,
     },
@@ -30,6 +30,7 @@ use crate::{
 
 pub mod app;
 pub mod comic_form;
+pub mod image;
 pub mod list;
 pub mod popup;
 pub mod spinner;
@@ -55,21 +56,46 @@ enum InputMode {
 
 /// Main application
 pub struct App {
+    /// Exit flag
     should_exit: bool,
+
+    /// Current Selected Tab
     current_tab: Tab,
+
+    /// List of the series in the library
     series_list: SeriesList,
-    image: StatefulProtocol,
+
+    /// Images in currently selected chapter
+    image_manager: ImageManager,
+
+    /// Komga manager
     komga_manager: KomgaManager,
+
+    /// Help flag
     show_help: bool,
 
+    /// Current input mode
     input_mode: InputMode,
 
+    /// Data from `ComicInfo`
     comic: ComicFormState,
+
+    /// Channel for receiving comic info
     comic_rx: Option<mpsc::Receiver<ComicInfoForm>>,
+
+    /// Last time the selection changed
     last_selection_change: Option<Instant>,
+
+    /// Pending selection to update
     pending_selection: Option<PathBuf>,
+
+    /// Spinner
     spinner: SpinnerState,
+
+    /// Reciever channel for status
     status_rx: watch::Receiver<String>,
+
+    /// Sender channel for status
     status_tx: watch::Sender<String>,
 }
 
@@ -82,11 +108,7 @@ impl Default for App {
 impl App {
     /// Create a new application
     pub fn new(series_list: Vec<Series>, config: &Config) -> anyhow::Result<Self> {
-        let dyn_img =
-            ImageReader::open("tumblr_586a38213908da1a27f7d49cf4fed52b_ba0d374c_1280.jpg")?
-                .decode()?;
         let picker = Picker::from_query_stdio()?;
-        let protocol = picker.new_resize_protocol(dyn_img);
 
         let mut fields_state = ListState::default();
         fields_state.select_first();
@@ -97,10 +119,10 @@ impl App {
             should_exit: false,
             current_tab: Tab::SeriesList,
             series_list: SeriesList::from_iter(series_list),
-            image: protocol,
+            image_manager: ImageManager::new(picker),
             komga_manager: KomgaManager::new(&config.komga.url, &config.komga.api_key)?,
             show_help: false,
-            comic: ComicFormState::Loading(()),
+            comic: ComicFormState::Loading,
             input_mode: InputMode::Normal,
             comic_rx: None,
             last_selection_change: None,
@@ -135,6 +157,7 @@ impl App {
     fn tick(&mut self) {
         // check for finished async loads
         self.poll_comic_info();
+        self.poll_images();
 
         // debounce loading
         if let Some(path) = self.pending_selection.clone() {
@@ -144,6 +167,7 @@ impl App {
         }
 
         self.spinner.tick();
+        self.image_manager.spinner.tick();
     }
 
     /// Handle key events
@@ -171,6 +195,8 @@ impl App {
                 KeyCode::Char('h') => self.previous_tab(),
                 KeyCode::Char(' ') if self.current_tab == Tab::ChaptersList => self.toggle_select(),
                 KeyCode::Char('?') => self.toggle_help(),
+                KeyCode::Char('=' | '+') => self.image_manager.next(),
+                KeyCode::Char('-') => self.image_manager.prev(),
                 _ => {}
             }
         }
@@ -441,7 +467,7 @@ impl App {
             }
         };
 
-        self.comic = ComicFormState::Loading(());
+        self.comic = ComicFormState::Loading;
         self.last_selection_change = Some(Instant::now());
         self.pending_selection = current_chapter_path;
     }
@@ -453,14 +479,19 @@ impl App {
     /// Updates the comic info based on the chapter path
     fn update_comic_info(&mut self, chapter_path: Option<PathBuf>) {
         if let Some(path) = chapter_path {
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.comic_rx = Some(rx);
-            self.comic = ComicFormState::Loading(());
+            let (comic_tx, comic_rx) = std::sync::mpsc::channel();
+            self.comic_rx = Some(comic_rx);
+            self.comic = ComicFormState::Loading;
+
+            let (images_tx, images_rx) = std::sync::mpsc::channel();
+            self.image_manager.images_rx = Some(images_rx);
+            self.image_manager.images = ImagesState::Loading;
 
             std::thread::spawn(move || {
-                let info = get_comic_from_zip(&path).unwrap_or_default();
+                let (info, images) = get_comic_from_zip(&path).unwrap_or_default();
                 let form = ComicInfoForm::new(&info);
-                let _ = tx.send(form);
+                let _ = comic_tx.send(form);
+                let _ = images_tx.send(images);
             });
         }
     }
@@ -471,6 +502,15 @@ impl App {
         {
             self.comic = ComicFormState::Ready(form);
             self.comic_rx = None;
+        }
+    }
+
+    fn poll_images(&mut self) {
+        if let Some(rx) = &self.image_manager.images_rx
+            && let Ok(images) = rx.try_recv()
+        {
+            let _ = self.image_manager.replace_images(images);
+            self.image_manager.images_rx = None;
         }
     }
 

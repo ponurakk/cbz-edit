@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Margin, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{
         Color, Modifier, Style, Stylize,
         palette::tailwind::{CYAN, NEUTRAL},
@@ -12,10 +12,12 @@ use ratatui::{
         ScrollbarOrientation,
     },
 };
-use ratatui_image::StatefulImage;
+use ratatui_image::{Resize, ResizeEncodeRender, StatefulImage};
 use tui_input::Input;
 
-use crate::ui::{App, ComicFormState, InputMode, Tab, popup::HelpPopup, spinner::Spinner};
+use crate::ui::{
+    App, ComicFormState, InputMode, Tab, image::ImagesState, popup::HelpPopup, spinner::Spinner,
+};
 
 const SELECTED_STYLE: Style = Style::new()
     .fg(CYAN.c600)
@@ -62,6 +64,7 @@ impl App {
         self.render_series(series_area, frame);
         self.render_chapters(chapters_area, frame);
         self.render_data_input(data_input_area, frame);
+
         self.render_info(data_info_area, frame);
 
         if self.show_help {
@@ -79,7 +82,6 @@ impl App {
     pub fn render_footer(&self, area: Rect, f: &mut Frame) {
         let status = self.status_rx.borrow().clone();
         let footer = Paragraph::new(status).left_aligned();
-        // let footer = Paragraph::new("Use ↓↑ to move, ←→ to change tabs, g/G to go top/bottom.").centered();
         f.render_widget(footer, area);
     }
 
@@ -171,6 +173,15 @@ impl App {
     }
 
     pub fn render_info(&mut self, area: Rect, f: &mut Frame) {
+        let ImagesState::Ready(ref mut images) = self.image_manager.images else {
+            f.render_stateful_widget(
+                Spinner::new(" Info "),
+                area,
+                &mut self.image_manager.spinner,
+            );
+            return;
+        };
+
         let block = Block::new()
             .title(Line::raw(" Info ").left_aligned())
             .borders(Borders::ALL)
@@ -181,10 +192,43 @@ impl App {
 
         let areas = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+            ])
             .split(inner_area);
 
-        f.render_stateful_widget(StatefulImage::default(), areas[1], &mut self.image);
+        if let Some(prev_index) = self.image_manager.current.checked_sub(1)
+            && let Some(img) = images.get_mut(prev_index)
+        {
+            if let Some(rect) = img.needs_resize(
+                &Resize::Fit(Some(ratatui_image::FilterType::Nearest)),
+                areas[0],
+            ) {
+                img.resize_encode(&Resize::Fit(Some(ratatui_image::FilterType::Nearest)), rect);
+            }
+            f.render_stateful_widget(StatefulImage::default(), areas[0], img);
+        }
+
+        if let Some(img) = images.get_mut(self.image_manager.current) {
+            let middle_split = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(90), Constraint::Percentage(10)])
+                .split(areas[1]);
+
+            f.render_stateful_widget(StatefulImage::default(), middle_split[0], img);
+
+            let label =
+                Paragraph::new(Span::styled("★ Selected", Style::default().fg(Color::Cyan)))
+                    .alignment(Alignment::Center);
+
+            f.render_widget(label, middle_split[1]);
+        }
+
+        if let Some(img) = images.get_mut(self.image_manager.current + 1) {
+            f.render_stateful_widget(StatefulImage::default(), areas[2], img);
+        }
     }
 
     pub fn render_data_input(&mut self, area: Rect, f: &mut Frame) {

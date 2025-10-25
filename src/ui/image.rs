@@ -1,0 +1,57 @@
+use std::{io::Cursor, sync::mpsc};
+
+use image::ImageReader;
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+
+use crate::ui::spinner::SpinnerState;
+
+pub enum ImagesState {
+    Loading,
+    Ready(Vec<StatefulProtocol>),
+}
+
+pub struct ImageManager {
+    pub picker: Picker,
+    pub images: ImagesState,
+    pub images_rx: Option<mpsc::Receiver<Vec<Vec<u8>>>>,
+    pub current: usize,
+    pub spinner: SpinnerState,
+}
+
+impl ImageManager {
+    pub fn new(picker: Picker) -> Self {
+        Self {
+            picker,
+            images: ImagesState::Loading,
+            images_rx: None,
+            current: 0,
+            spinner: SpinnerState::default(),
+        }
+    }
+
+    pub fn next(&mut self) {
+        if let ImagesState::Ready(images) = &self.images
+            && self.current < images.len() - 1
+        {
+            self.current += 1;
+        }
+    }
+
+    pub fn prev(&mut self) {
+        self.current = self.current.saturating_sub(1);
+    }
+
+    pub fn replace_images(&mut self, images: Vec<Vec<u8>>) -> anyhow::Result<()> {
+        let mut protocols: Vec<StatefulProtocol> = Vec::new();
+        for img in images {
+            let dyn_img = ImageReader::new(Cursor::new(img))
+                .with_guessed_format()?
+                .decode()?;
+            let proto = self.picker.new_resize_protocol(dyn_img);
+            protocols.push(proto);
+        }
+        self.images = ImagesState::Ready(protocols);
+        self.current = 0;
+        Ok(())
+    }
+}
