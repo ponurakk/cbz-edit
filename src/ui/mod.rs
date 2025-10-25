@@ -148,6 +148,7 @@ impl App {
         // check for finished async loads
         self.poll_comic_info();
         self.poll_images();
+        self.image_manager.poll_image_updates();
 
         // debounce loading
         if let Some(path) = self.pending_selection.clone() {
@@ -478,11 +479,12 @@ impl App {
             self.comic_manager.comic = ComicFormState::Loading;
 
             let (images_tx, images_rx) = std::sync::mpsc::channel();
-            self.image_manager.images_rx = Some(images_rx);
+            self.image_manager.raw_images_rx = Some(images_rx);
             self.image_manager.images = ImagesState::Loading;
 
-            std::thread::spawn(move || {
-                let (info, images) = get_comic_from_zip(&path).unwrap_or_default();
+            tokio::spawn(async move {
+                let (mut info, images) = get_comic_from_zip(&path).unwrap_or_default();
+                info.page_count = Some(images.len() as u32);
                 let form = ComicInfoForm::new(&info);
                 let _ = comic_tx.send(form);
                 let _ = images_tx.send(images);
@@ -500,11 +502,11 @@ impl App {
     }
 
     fn poll_images(&mut self) {
-        if let Some(rx) = &self.image_manager.images_rx
+        if let Some(rx) = &self.image_manager.raw_images_rx
             && let Ok(images) = rx.try_recv()
         {
-            let _ = self.image_manager.replace_images(images);
-            self.image_manager.images_rx = None;
+            self.image_manager.replace_images(images);
+            self.image_manager.raw_images_rx = None;
         }
     }
 

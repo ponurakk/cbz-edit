@@ -13,7 +13,8 @@ pub enum ImagesState {
 pub struct ImageManager {
     pub picker: Picker,
     pub images: ImagesState,
-    pub images_rx: Option<mpsc::Receiver<Vec<Vec<u8>>>>,
+    pub raw_images_rx: Option<mpsc::Receiver<Vec<Vec<u8>>>>,
+    pub images_rx: Option<mpsc::Receiver<Vec<StatefulProtocol>>>,
     pub current: usize,
     pub spinner: SpinnerState,
 }
@@ -23,6 +24,7 @@ impl ImageManager {
         Self {
             picker,
             images: ImagesState::Loading,
+            raw_images_rx: None,
             images_rx: None,
             current: 0,
             spinner: SpinnerState::default(),
@@ -41,17 +43,41 @@ impl ImageManager {
         self.current = self.current.saturating_sub(1);
     }
 
-    pub fn replace_images(&mut self, images: Vec<Vec<u8>>) -> anyhow::Result<()> {
-        let mut protocols: Vec<StatefulProtocol> = Vec::new();
-        for img in images {
-            let dyn_img = ImageReader::new(Cursor::new(img))
-                .with_guessed_format()?
-                .decode()?;
-            let proto = self.picker.new_resize_protocol(dyn_img);
-            protocols.push(proto);
-        }
-        self.images = ImagesState::Ready(protocols);
+    pub fn replace_images(&mut self, images: Vec<Vec<u8>>) {
+        let (tx, rx) = mpsc::channel();
+        self.images_rx = Some(rx);
+        self.images = ImagesState::Loading;
         self.current = 0;
-        Ok(())
+
+        let picker = self.picker.clone();
+
+        tokio::spawn(async move {
+            let mut protocols: Vec<StatefulProtocol> = Vec::new();
+            for img_bytes in images {
+                let decoded = (|| -> Result<_, image::ImageError> {
+                    let reader = ImageReader::new(Cursor::new(img_bytes)).with_guessed_format()?;
+                    reader.decode()
+                })();
+
+                match decoded {
+                    Ok(dyn_img) => {
+                        let proto = picker.new_resize_protocol(dyn_img);
+                        protocols.push(proto);
+                    }
+                    Err(err) => eprintln!("image decode failed: {err}"),
+                }
+            }
+
+            let _ = tx.send(protocols);
+        });
+    }
+
+    pub fn poll_image_updates(&mut self) {
+        if let Some(rx) = &self.images_rx
+            && let Ok(protocols) = rx.try_recv()
+        {
+            self.images = ImagesState::Ready(protocols);
+            self.images_rx = None;
+        }
     }
 }

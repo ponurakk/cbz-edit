@@ -219,9 +219,11 @@ impl App {
 
             f.render_stateful_widget(StatefulImage::default(), middle_split[0], img);
 
-            let label =
-                Paragraph::new(Span::styled("★ Selected", Style::default().fg(Color::Cyan)))
-                    .alignment(Alignment::Center);
+            let label = Paragraph::new(Span::styled(
+                "★ Selected ★",
+                Style::default().fg(Color::Cyan),
+            ))
+            .alignment(Alignment::Center);
 
             f.render_widget(label, middle_split[1]);
         }
