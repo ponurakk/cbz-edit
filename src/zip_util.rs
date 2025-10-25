@@ -7,7 +7,7 @@ use std::{
 use quick_xml::{
     Reader, Writer,
     de::from_str,
-    events::{BytesText, Event},
+    events::{BytesDecl, BytesText, Event},
     se::to_string,
 };
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
@@ -145,6 +145,7 @@ fn add_xml_comment(xml: &str, comment: &str) -> anyhow::Result<String> {
     reader.config_mut().trim_text(true);
 
     let mut writer = Writer::new(Cursor::new(Vec::new()));
+    writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?;
     writer.write_event(Event::Comment(BytesText::new(comment)))?;
 
     let mut buf = Vec::new();
