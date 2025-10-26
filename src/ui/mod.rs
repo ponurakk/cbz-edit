@@ -205,7 +205,7 @@ impl App {
 
                     tokio::spawn(async move {
                         if let Err(e) = save_series_info(chapters, comic_info, status_tx).await {
-                            eprintln!("Failed to save series info: {e}");
+                            error!("Failed to save series info: {e}");
                         }
                     });
                 }
@@ -217,7 +217,7 @@ impl App {
                     let status_tx = self.status_tx.clone();
                     tokio::spawn(async move {
                         if let Err(e) = save_chapter_info(chapter, comic_info, status_tx).await {
-                            eprintln!("Failed to save chapter info: {e}");
+                            error!("Failed to save chapter info: {e}");
                         }
                     });
                 }
@@ -228,7 +228,7 @@ impl App {
                     let status_tx = self.status_tx.clone();
                     tokio::spawn(async move {
                         if let Err(e) = update_chapter_numbering(chapters, status_tx).await {
-                            eprintln!("Failed to save series info: {e}");
+                            error!("Failed to save series info: {e}");
                         }
                     });
                 }
@@ -242,7 +242,23 @@ impl App {
                         if let Err(e) =
                             update_volume_numbering(chapters, comic_info, status_tx).await
                         {
-                            eprintln!("Failed to save series info: {e}");
+                            error!("Failed to save series info: {e}");
+                        }
+                    });
+                }
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
+                    let path = self.get_current_series().path;
+                    let komga_manager = self.komga_manager.clone();
+                    tokio::spawn(async move {
+                        if let Ok(series) = komga_manager.list_series().await
+                            && let Some(series) = series
+                                .content
+                                .iter()
+                                .find(|v| v.url == path.to_string_lossy())
+                        {
+                            info!("{series:#?}");
                         }
                     });
                 }

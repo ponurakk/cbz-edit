@@ -1,19 +1,19 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaSeriesMetadata {
     pub title: String,
     pub summary: String,
     pub publisher: String,
-    pub age_rating: u32,
-    pub language: String,
+    pub age_rating: Option<u32>,
+    pub language: Option<String>,
     pub genres: Vec<String>,
     pub tags: Vec<String>,
-    pub total_book_count: u32,
+    pub total_book_count: Option<u32>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaSeriesBooksMetadata {
     pub writer: Option<String>,
@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for KomgaSeriesBooksMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaSeries {
     pub id: String,
@@ -72,12 +72,12 @@ pub struct KomgaSeries {
     pub metadata: KomgaSeriesMetadata,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaBooksMetadata {
     pub title: String,
     pub summary: String,
-    pub number: String,
+    pub number: f32,
     pub writer: Option<String>,
     pub penciller: Option<String>,
     pub translator: Option<String>,
@@ -88,8 +88,8 @@ struct RawBook {
     title: String,
     #[serde(default)]
     summary: String,
-    #[serde(default)]
-    number: String,
+    #[serde(default, rename = "numberSort")]
+    number: f32,
     #[serde(default)]
     authors: Vec<RawAuthor>,
 }
@@ -125,7 +125,7 @@ impl<'de> Deserialize<'de> for KomgaBooksMetadata {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaBook {
     pub id: String,
@@ -143,7 +143,7 @@ pub trait KomgaItem {}
 impl KomgaItem for KomgaSeries {}
 impl KomgaItem for KomgaBook {}
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KomgaResponse<T: KomgaItem> {
     pub total_elements: i64,

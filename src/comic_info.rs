@@ -4,6 +4,8 @@ use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::komga::api::KomgaSeriesMetadata;
+
 #[derive(Debug, Default, Serialize, Clone, Copy)]
 pub enum ComicInfoManga {
     #[default]
@@ -67,6 +69,18 @@ pub enum ComicInfoAgeRating {
     /// Hentai / Erotic
     #[serde(rename = "Adults Only 18+")]
     AdultsOnly18Plus,
+}
+
+impl From<u32> for ComicInfoAgeRating {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Everyone,
+            13 => Self::Teen,
+            17 => Self::Mature17Plus,
+            18 => Self::AdultsOnly18Plus,
+            _ => Self::Unknown,
+        }
+    }
 }
 
 impl FromStr for ComicInfoAgeRating {
@@ -256,4 +270,24 @@ impl ComicInfo {
     pub fn update_volume(&mut self, comic_info: &Self) {
         self.volume = comic_info.volume;
     }
+
+    // pub fn update_from_komga_metadata(&mut self, metadata: &KomgaSeriesMetadata) {
+    //     self.title.clone_from(&metadata.title);
+    //     self.summary = Some(metadata.summary.clone());
+    //     self.publisher = Some(metadata.publisher.clone());
+    //     self.genre = if metadata.genres.join(",").is_empty() {
+    //         None
+    //     } else {
+    //         Some(metadata.genres.join(","))
+    //     };
+    //
+    //     self.tags = if metadata.tags.join(",").is_empty() {
+    //         None
+    //     } else {
+    //         Some(metadata.tags.join(","))
+    //     };
+    //     self.language_iso.clone_from(&metadata.language);
+    //     // self.age_rating = metadata.age_rating.map(|v| v.into()).unwrap_or_default();
+    //     self.count = metadata.total_book_count;
+    // }
 }

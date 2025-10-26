@@ -17,6 +17,15 @@ fn get_title(chapter: &Chapter) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+fn get_parent_series(chapters: &[Chapter]) -> String {
+    chapters
+        .first()
+        .and_then(|v| v.path.parent())
+        .and_then(|parent| parent.file_name())
+        .map(|file_name| file_name.to_string_lossy().to_string())
+        .unwrap_or_default()
+}
+
 async fn process_chapter_info<F>(
     chapter: Chapter,
     info: ComicInfo,
@@ -42,12 +51,17 @@ pub async fn save_chapter_info(
     status_tx: watch::Sender<String>,
 ) -> anyhow::Result<()> {
     let total_start = Instant::now();
+    let path = chapter.path.clone();
     process_chapter_info(chapter, info, status_tx.clone(), 0, 1, replace_comic_info).await?;
 
     let total_duration = total_start.elapsed();
     let _ = status_tx.send(format!(
         "All done~ processed chapter in {total_duration:.2?} 🎉"
     ));
+    info!(
+        "Processed chapter({}) in {total_duration:.2?}",
+        path.file_name().unwrap_or(path.as_os_str()).display()
+    );
     Ok(())
 }
 
@@ -94,6 +108,7 @@ pub async fn save_series_info(
     // TODO: Make this in config
     let concurrency_limit = num_cpus::get();
     let total_start = Instant::now();
+    let series = get_parent_series(&chapters);
 
     stream::iter(chapters.into_iter().enumerate())
         .map(|(i, chapter)| {
@@ -112,6 +127,7 @@ pub async fn save_series_info(
     let _ = status_tx.send(format!(
         "All done~ processed {chapters_len} chapters in {total_duration:.2?} 🎉"
     ));
+    info!("Processed {chapters_len} chapters from ({series}) in {total_duration:.2?}");
 
     Ok(())
 }
@@ -125,6 +141,7 @@ pub async fn update_chapter_numbering(
     // TODO: Make this in config
     let concurrency_limit = num_cpus::get();
     let total_start = Instant::now();
+    let series = get_parent_series(&chapters);
 
     stream::iter(chapters.into_iter().enumerate())
         .map(|(i, chapter)| {
@@ -153,6 +170,8 @@ pub async fn update_chapter_numbering(
         "All done~ processed {chapters_len} chapters in {total_duration:.2?} 🎉"
     ));
 
+    info!("Processed {chapters_len} chapters from ({series}) in {total_duration:.2?}");
+
     Ok(())
 }
 
@@ -165,6 +184,7 @@ pub async fn update_volume_numbering(
     // TODO: Make this in config
     let concurrency_limit = num_cpus::get();
     let total_start = Instant::now();
+    let series = get_parent_series(&chapters);
 
     stream::iter(chapters.into_iter().enumerate())
         .map(|(i, chapter)| {
@@ -183,6 +203,7 @@ pub async fn update_volume_numbering(
     let _ = status_tx.send(format!(
         "All done~ processed {chapters_len} chapters in {total_duration:.2?} 🎉"
     ));
+    info!("Processed {chapters_len} chapters from ({series}) in {total_duration:.2?}");
 
     Ok(())
 }

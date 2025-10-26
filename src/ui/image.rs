@@ -64,7 +64,7 @@ impl ImageManager {
                         let proto = picker.new_resize_protocol(dyn_img);
                         protocols.push(proto);
                     }
-                    Err(err) => eprintln!("image decode failed: {err}"),
+                    Err(err) => error!("Image decode failed: {err}"),
                 }
             }
 

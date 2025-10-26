@@ -70,4 +70,8 @@ impl Config {
             Ok(config)
         }
     }
+
+    pub fn get_log_path() -> anyhow::Result<PathBuf> {
+        Config::get_path().map(|v| v.join("cbz.log"))
+    }
 }

@@ -7,6 +7,7 @@ use serde_json::json;
 use crate::komga::api::{KomgaBookResponse, KomgaSeriesResponse};
 
 /// Manager for Komga API
+#[derive(Clone)]
 pub struct KomgaManager {
     base_url: String,
     api_key: String,
