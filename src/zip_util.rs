@@ -173,10 +173,13 @@ fn update_shared_updater(mut old: ComicInfo, new: &ComicInfo) -> ComicInfo {
 
 /// Updates fields derived from filename
 fn derive_updater(mut old: ComicInfo, new: &ComicInfo) -> ComicInfo {
-    old.volume = new.volume;
-    old.number = new.number;
-    old.translator.clone_from(&new.translator);
-    old.title.clone_from(&new.title);
+    old.update_derived_fields(new);
+    old
+}
+
+/// Updates volume
+fn volume_updater(mut old: ComicInfo, new: &ComicInfo) -> ComicInfo {
+    old.update_volume(new);
     old
 }
 
@@ -191,9 +194,14 @@ pub fn replace_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow:
     modify_zip(path, new_comic_info, replace_all_updater)
 }
 
-/// Replace the file at `target_path` with `new_comic_info`.
+/// Modify the zip with derived info
 pub fn derive_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
     modify_zip(path, new_comic_info, derive_updater)
+}
+
+/// Modify the zip with volume number
+pub fn volume_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::Result<()> {
+    modify_zip(path, new_comic_info, volume_updater)
 }
 
 /// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)

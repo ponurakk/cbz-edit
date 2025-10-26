@@ -15,7 +15,9 @@ use tokio::sync::watch;
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
-    chapter_manager::{save_chapter_info, save_series_info, update_chapter_numbering},
+    chapter_manager::{
+        save_chapter_info, save_series_info, update_chapter_numbering, update_volume_numbering,
+    },
     config::Config,
     komga::manager::KomgaManager,
     ui::{
@@ -226,6 +228,20 @@ impl App {
                     let status_tx = self.status_tx.clone();
                     tokio::spawn(async move {
                         if let Err(e) = update_chapter_numbering(chapters, status_tx).await {
+                            eprintln!("Failed to save series info: {e}");
+                        }
+                    });
+                }
+            }
+            KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
+                    let chapters = self.get_chapters_in_series();
+                    let comic_info = comic.to_comic_info();
+                    let status_tx = self.status_tx.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            update_volume_numbering(chapters, comic_info, status_tx).await
+                        {
                             eprintln!("Failed to save series info: {e}");
                         }
                     });

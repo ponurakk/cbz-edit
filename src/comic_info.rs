@@ -228,6 +228,7 @@ impl ComicInfo {
         }
     }
 
+    /// Updates fields that are the same across all chapters in the series
     pub fn update_shared_fields(&mut self, comic_info: &Self) {
         self.series.clone_from(&comic_info.series);
         self.summary.clone_from(&comic_info.summary);
@@ -241,5 +242,18 @@ impl ComicInfo {
         self.manga = comic_info.manga;
         self.age_rating = comic_info.age_rating;
         self.count = comic_info.count;
+    }
+
+    /// Updates fields that can be derived from filename
+    pub fn update_derived_fields(&mut self, comic_info: &Self) {
+        self.title.clone_from(&comic_info.title);
+        self.translator.clone_from(&comic_info.translator);
+        self.number = comic_info.number;
+        self.volume = comic_info.volume;
+    }
+
+    /// Updates the volume number
+    pub fn update_volume(&mut self, comic_info: &Self) {
+        self.volume = comic_info.volume;
     }
 }
