@@ -175,7 +175,7 @@ impl App {
     pub fn render_info(&mut self, area: Rect, f: &mut Frame) {
         let ImagesState::Ready(ref mut images) = self.image_manager.images else {
             f.render_stateful_widget(
-                Spinner::new(" Info "),
+                Spinner::new(" Pages "),
                 area,
                 &mut self.image_manager.spinner,
             );
@@ -183,7 +183,7 @@ impl App {
         };
 
         let block = Block::new()
-            .title(Line::raw(" Info ").left_aligned())
+            .title(Line::raw(" Pages ").left_aligned())
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
 
