@@ -92,7 +92,16 @@ impl App {
         });
     }
 
-    pub fn handle_esc(&mut self) {
+    /// Clears the chapter selection
+    pub fn handle_esc_selection(&mut self) {
+        let current = self.series_list.state.selected().unwrap_or_default();
+        if let Some(series) = self.series_list.items_state.get_mut(current) {
+            series.chapters.selected.clear();
+        }
+    }
+
+    /// Changes input to normal
+    pub fn handle_esc_editing(&mut self) {
         if self.input_mode == InputMode::Editing {
             self.input_mode = InputMode::Normal;
         } else {

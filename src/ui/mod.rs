@@ -186,6 +186,7 @@ impl App {
                 KeyCode::Char('?') => self.toggle_help(),
                 KeyCode::Char('=' | '+') => self.image_manager.next(),
                 KeyCode::Char('-') => self.image_manager.prev(),
+                KeyCode::Esc => self.handle_esc_selection(),
                 _ => {}
             }
         }
@@ -228,7 +229,7 @@ impl App {
             }
             KeyCode::Char('=' | '+') => self.image_manager.next(),
             KeyCode::Char('-') => self.image_manager.prev(),
-            KeyCode::Esc => self.handle_esc(),
+            KeyCode::Esc => self.handle_esc_editing(),
             _ => {
                 if self.input_mode == InputMode::Editing
                     && let Some(input) = self.comic_manager.comic.active_input_mut()
