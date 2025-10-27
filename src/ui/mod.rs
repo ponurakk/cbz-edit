@@ -16,22 +16,20 @@ use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
     config::Config,
-    komga::manager::KomgaManager,
-    ui::{
+    managers::{
         comic_form::{ComicFormState, ComicInfoForm, ComicInfoManager},
         image::{ImageManager, ImagesState},
-        list::{Chapter, Series, SeriesList},
+        komga::KomgaManager,
     },
+    ui::list::{Chapter, Series, SeriesList},
     zip_util::get_comic_from_zip,
 };
 
 pub mod app;
-pub mod comic_form;
-pub mod image;
+pub mod components;
 pub mod keybindings;
 pub mod list;
-pub mod popup;
-pub mod spinner;
+pub mod widgets;
 
 /// Debounce delay for chapter selection
 const TICK_RATE: Duration = Duration::from_millis(100);
@@ -256,6 +254,7 @@ impl App {
             self.image_manager.raw_images_rx = Some(images_rx);
             self.image_manager.images = ImagesState::Loading;
 
+            #[allow(clippy::cast_possible_truncation)]
             tokio::spawn(async move {
                 let (mut info, images) = get_comic_from_zip(&path).unwrap_or_default();
                 info.page_count = Some(images.len() as u32);

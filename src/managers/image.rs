@@ -3,7 +3,7 @@ use std::{io::Cursor, sync::mpsc};
 use image::ImageReader;
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 
-use crate::ui::spinner::SpinnerState;
+use crate::ui::widgets::spinner::SpinnerState;
 
 pub enum ImagesState {
     Loading,

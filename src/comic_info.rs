@@ -4,8 +4,6 @@ use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::komga::api::KomgaSeriesMetadata;
-
 #[derive(Debug, Default, Serialize, Clone, Copy)]
 pub enum ComicInfoManga {
     #[default]

@@ -15,6 +15,7 @@ mod comic_info;
 mod config;
 mod data;
 mod komga;
+mod managers;
 mod ui;
 mod zip_util;
 

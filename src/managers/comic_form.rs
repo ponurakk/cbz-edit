@@ -4,7 +4,7 @@ use tui_input::Input;
 
 use crate::{
     comic_info::{ComicInfo, ComicInfoAgeRating, ComicInfoManga},
-    ui::spinner::SpinnerState,
+    ui::widgets::spinner::SpinnerState,
 };
 
 pub struct ComicInfoManager {

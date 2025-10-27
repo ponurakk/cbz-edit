@@ -4,36 +4,40 @@ use crate::{
     chapter_manager::{
         save_chapter_info, save_series_info, update_chapter_numbering, update_volume_numbering,
     },
-    ui::{App, InputMode, Tab, comic_form::ComicFormState, list::Series},
+    managers::comic_form::ComicFormState,
+    ui::{App, InputMode, Tab, list::Series},
 };
 
 /// Handles keybindings in metadata tab
 impl App {
     pub fn handle_ctrl_d(&self) {
-        if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-            let chapters = self.get_chapters_in_series();
-            let comic_info = comic.to_comic_info();
-            let status_tx = self.status_tx.clone();
+        let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
+            return;
+        };
+        let chapters = self.get_chapters_in_series();
+        let comic_info = comic.to_comic_info();
+        let status_tx = self.status_tx.clone();
 
-            tokio::spawn(async move {
-                if let Err(e) = save_series_info(chapters, comic_info, status_tx).await {
-                    error!("Failed to save series info: {e}");
-                }
-            });
-        }
+        tokio::spawn(async move {
+            if let Err(e) = save_series_info(chapters, comic_info, status_tx).await {
+                error!("Failed to save series info: {e}");
+            }
+        });
     }
 
     pub fn handle_ctrl_s(&self) {
-        if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-            let chapter = self.get_current_chapter();
-            let comic_info = comic.to_comic_info();
-            let status_tx = self.status_tx.clone();
-            tokio::spawn(async move {
-                if let Err(e) = save_chapter_info(chapter, comic_info, status_tx).await {
-                    error!("Failed to save chapter info: {e}");
-                }
-            });
-        }
+        let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
+            return;
+        };
+
+        let chapter = self.get_current_chapter();
+        let comic_info = comic.to_comic_info();
+        let status_tx = self.status_tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = save_chapter_info(chapter, comic_info, status_tx).await {
+                error!("Failed to save chapter info: {e}");
+            }
+        });
     }
 
     pub fn handle_ctrl_f(&self) {
@@ -49,35 +53,43 @@ impl App {
     }
 
     pub fn handle_ctrl_g(&self) {
-        if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-            let chapters = self.get_chapters_in_series();
-            let comic_info = comic.to_comic_info();
-            let status_tx = self.status_tx.clone();
-            tokio::spawn(async move {
-                if let Err(e) = update_volume_numbering(chapters, comic_info, status_tx).await {
-                    error!("Failed to save series info: {e}");
-                }
-            });
-        }
+        let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
+            return;
+        };
+
+        let chapters = self.get_chapters_in_series();
+        let comic_info = comic.to_comic_info();
+        let status_tx = self.status_tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = update_volume_numbering(chapters, comic_info, status_tx).await {
+                error!("Failed to save series info: {e}");
+            }
+        });
     }
 
     pub fn handle_ctrl_u(&self) {
-        if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-            let path = self.get_current_series().path;
-            let komga_manager = self.komga_manager.clone();
-            tokio::spawn(async move {
-                if let Ok(series) = komga_manager.list_series().await
-                    && let Some(series) = series
-                        .content
-                        .iter()
-                        .find(|v| v.url == path.to_string_lossy())
-                {
-                    info!("{series:#?}");
-                } else {
-                    error!("Failed to find series ({})", path.display());
-                }
-            });
-        }
+        let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
+            return;
+        };
+
+        let path = self.get_current_series().path;
+        let komga_manager = self.komga_manager.clone();
+        tokio::spawn(async move {
+            if let Ok(series) = komga_manager.list_series().await
+                && let Some(series) = series
+                    .content
+                    .iter()
+                    .find(|v| v.url == path.to_string_lossy())
+            {
+                let Ok(books) = komga_manager.list_books(&series.id).await else {
+                    return;
+                };
+
+                info!("{books:#?}");
+            } else {
+                error!("Failed to find series ({})", path.display());
+            }
+        });
     }
 
     pub fn handle_esc(&mut self) {

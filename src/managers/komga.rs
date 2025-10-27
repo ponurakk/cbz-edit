@@ -4,7 +4,7 @@ use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde::Serialize;
 use serde_json::json;
 
-use crate::komga::api::{KomgaBookResponse, KomgaSeriesResponse};
+use crate::komga::{KomgaBookResponse, KomgaSeriesResponse};
 
 /// Manager for Komga API
 #[derive(Clone)]
