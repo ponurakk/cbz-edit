@@ -15,9 +15,6 @@ use tokio::sync::watch;
 use tui_input::backend::crossterm::EventHandler;
 
 use crate::{
-    chapter_manager::{
-        save_chapter_info, save_series_info, update_chapter_numbering, update_volume_numbering,
-    },
     config::Config,
     komga::manager::KomgaManager,
     ui::{
@@ -31,6 +28,7 @@ use crate::{
 pub mod app;
 pub mod comic_form;
 pub mod image;
+pub mod keybindings;
 pub mod list;
 pub mod popup;
 pub mod spinner;
@@ -198,70 +196,19 @@ impl App {
     fn handle_key_metadata(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-                    let chapters = self.get_chapters_in_series();
-                    let comic_info = comic.to_comic_info();
-                    let status_tx = self.status_tx.clone();
-
-                    tokio::spawn(async move {
-                        if let Err(e) = save_series_info(chapters, comic_info, status_tx).await {
-                            error!("Failed to save series info: {e}");
-                        }
-                    });
-                }
+                self.handle_ctrl_d();
             }
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-                    let chapter = self.get_current_chapter();
-                    let comic_info = comic.to_comic_info();
-                    let status_tx = self.status_tx.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = save_chapter_info(chapter, comic_info, status_tx).await {
-                            error!("Failed to save chapter info: {e}");
-                        }
-                    });
-                }
+                self.handle_ctrl_s();
             }
             KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(_) = &self.comic_manager.comic {
-                    let chapters = self.get_chapters_in_series();
-                    let status_tx = self.status_tx.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = update_chapter_numbering(chapters, status_tx).await {
-                            error!("Failed to save series info: {e}");
-                        }
-                    });
-                }
+                self.handle_ctrl_f();
             }
             KeyCode::Char('g') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-                    let chapters = self.get_chapters_in_series();
-                    let comic_info = comic.to_comic_info();
-                    let status_tx = self.status_tx.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            update_volume_numbering(chapters, comic_info, status_tx).await
-                        {
-                            error!("Failed to save series info: {e}");
-                        }
-                    });
-                }
+                self.handle_ctrl_g();
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                if let ComicFormState::Ready(comic) = &self.comic_manager.comic {
-                    let path = self.get_current_series().path;
-                    let komga_manager = self.komga_manager.clone();
-                    tokio::spawn(async move {
-                        if let Ok(series) = komga_manager.list_series().await
-                            && let Some(series) = series
-                                .content
-                                .iter()
-                                .find(|v| v.url == path.to_string_lossy())
-                        {
-                            info!("{series:#?}");
-                        }
-                    });
-                }
+                self.handle_ctrl_u();
             }
             KeyCode::Enter if self.input_mode == InputMode::Normal => {
                 self.input_mode = InputMode::Editing;
@@ -281,14 +228,9 @@ impl App {
             KeyCode::Char('h') if self.input_mode == InputMode::Normal => {
                 self.comic_manager.comic.prev_side();
             }
-
-            KeyCode::Esc => {
-                if self.input_mode == InputMode::Editing {
-                    self.input_mode = InputMode::Normal;
-                } else {
-                    self.current_tab = Tab::ChaptersList;
-                }
-            }
+            KeyCode::Char('=' | '+') => self.image_manager.next(),
+            KeyCode::Char('-') => self.image_manager.prev(),
+            KeyCode::Esc => self.handle_esc(),
             _ => {
                 if self.input_mode == InputMode::Editing
                     && let Some(input) = self.comic_manager.comic.active_input_mut()
@@ -297,206 +239,6 @@ impl App {
                 }
             }
         }
-    }
-
-    fn next_tab(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => self.current_tab = Tab::ChaptersList,
-            Tab::ChaptersList => self.current_tab = Tab::Metadata,
-            Tab::Metadata => {}
-        }
-    }
-
-    fn previous_tab(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => self.current_tab = Tab::ChaptersList,
-            Tab::ChaptersList => self.current_tab = Tab::SeriesList,
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select the next item
-    fn select_next(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                self.series_list.state.select_next();
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| series.chapters.state.select_next());
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select the previous item
-    fn select_previous(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                self.series_list.state.select_previous();
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| series.chapters.state.select_previous());
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select `n` items ahead
-    fn select_next_n(selected: Option<usize>, n: usize, len: usize) -> usize {
-        selected.map_or(len.saturating_add(1), |v| v.saturating_add(n))
-    }
-
-    /// Select 10 items ahead
-    fn select_next_10(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                let len = self.series_list.items.len();
-                let new_idx = Self::select_next_n(self.series_list.state.selected(), 10, len);
-                self.series_list.state.select(Some(new_idx));
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| {
-                    let len = series.chapters.items.len();
-                    let new_idx = Self::select_next_n(series.chapters.state.selected(), 10, len);
-                    series.chapters.state.select(Some(new_idx));
-                });
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select `n` items behind
-    fn select_previous_n(selected: Option<usize>, n: usize, len: usize) -> usize {
-        selected.map_or(len.saturating_sub(1), |v| v.saturating_sub(n))
-    }
-
-    /// Select 10 items behind
-    fn select_previous_10(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                let len = self.series_list.items.len();
-                let new_idx = Self::select_previous_n(self.series_list.state.selected(), 10, len);
-                self.series_list.state.select(Some(new_idx));
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| {
-                    let len = series.chapters.items.len();
-                    let new_idx =
-                        Self::select_previous_n(series.chapters.state.selected(), 10, len);
-                    series.chapters.state.select(Some(new_idx));
-                });
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select the first item
-    fn select_first(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                self.series_list.state.select_first();
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| series.chapters.state.select_first());
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Select the last item
-    fn select_last(&mut self) {
-        match self.current_tab {
-            Tab::SeriesList => {
-                self.series_list.state.select_last();
-                self.update_chapter_select(|series| {
-                    series.chapters.state.selected();
-                });
-                self.update_series_scroll();
-            }
-            Tab::ChaptersList => {
-                self.update_chapter_select(|series| series.chapters.state.select_last());
-                self.update_chapter_scroll();
-            }
-            Tab::Metadata => {}
-        }
-    }
-
-    /// Toggle the selection of the current chapter
-    fn toggle_select(&mut self) {
-        let current = self.series_list.state.selected().unwrap_or_default();
-        if let Some(series) = self.series_list.items_state.get_mut(current) {
-            series.chapters.toggle_selected();
-            self.select_next();
-        }
-    }
-
-    fn toggle_help(&mut self) {
-        self.show_help = !self.show_help;
-    }
-
-    /// Update the series scroll
-    fn update_series_scroll(&mut self) {
-        let current = self.series_list.state.selected().unwrap_or_default();
-        self.series_list.scroll_state = self.series_list.scroll_state.position(current);
-    }
-
-    /// Update the chapter scroll
-    fn update_chapter_scroll(&mut self) {
-        let current = self.series_list.state.selected().unwrap_or_default();
-        if let Some(series) = self.series_list.items_state.get_mut(current) {
-            let current_chapter = series.chapters.state.selected().unwrap_or(0);
-            series.chapters.scroll_state = series.chapters.scroll_state.position(current_chapter);
-        }
-    }
-
-    /// Update the chapter select
-    ///
-    /// Updates the current chapter path and the comic info
-    /// based on the selected chapter
-    fn update_chapter_select(&mut self, select: fn(&mut Series)) {
-        let current = self.series_list.state.selected().unwrap_or_default();
-        let current_chapter_path = {
-            if let Some(series) = self.series_list.items_state.get_mut(current) {
-                select(series);
-                let current_chapter = series.chapters.state.selected().unwrap_or(0);
-                series
-                    .chapters
-                    .items
-                    .get(current_chapter)
-                    .map(|c| c.path.clone())
-            } else {
-                None
-            }
-        };
-
-        self.comic_manager.comic = ComicFormState::Loading;
-        self.last_selection_change = Some(Instant::now());
-        self.pending_selection = current_chapter_path;
     }
 }
 
