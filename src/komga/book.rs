@@ -6,6 +6,7 @@ pub struct KomgaBooksMetadata {
     pub title: String,
     pub summary: String,
     pub number: f32,
+    pub tags: Vec<String>,
     pub writer: Option<String>,
     pub penciller: Option<String>,
     pub translator: Option<String>,
@@ -20,6 +21,8 @@ struct RawBook {
     number: f32,
     #[serde(default)]
     authors: Vec<super::RawAuthor>,
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 impl<'de> Deserialize<'de> for KomgaBooksMetadata {
@@ -46,6 +49,7 @@ impl<'de> Deserialize<'de> for KomgaBooksMetadata {
             title: raw.title,
             summary: raw.summary,
             number: raw.number,
+            tags: raw.tags,
             writer,
             penciller,
             translator,
@@ -59,10 +63,10 @@ pub struct KomgaBook {
     pub id: String,
     pub series_id: String,
     pub series_title: String,
+    pub library_id: String,
     pub name: String,
     pub url: String,
     pub number: u32,
-    pub tags: Vec<String>,
     pub oneshot: bool,
     pub metadata: KomgaBooksMetadata,
 }

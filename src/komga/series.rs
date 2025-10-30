@@ -1,3 +1,4 @@
+use crate::serializers::empty_string_as_none;
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -7,6 +8,7 @@ pub struct KomgaSeriesMetadata {
     pub summary: String,
     pub publisher: String,
     pub age_rating: Option<u32>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub language: Option<String>,
     pub genres: Vec<String>,
     pub tags: Vec<String>,

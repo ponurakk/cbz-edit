@@ -16,6 +16,7 @@ mod config;
 mod data;
 mod komga;
 mod managers;
+mod serializers;
 mod ui;
 mod zip_util;
 
@@ -25,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let log_file = File::create(Config::get_log_path()?)?;
 
     WriteLogger::init(
-        LevelFilter::Info,
+        LevelFilter::Debug,
         simplelog::ConfigBuilder::new()
             .set_thread_level(LevelFilter::Error)
             .set_time_format_custom(format_description!(

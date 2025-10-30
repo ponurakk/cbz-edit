@@ -69,10 +69,18 @@ impl App {
 
     pub fn handle_ctrl_u(&self) {
         let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
+            error!("Comic is not ready");
             return;
         };
 
         let path = self.get_current_series().path;
+        // TODO: Get this from config
+        let path = if path.ends_with("_oneshots") {
+            self.get_current_chapter().path
+        } else {
+            path
+        };
+
         let komga_manager = self.komga_manager.clone();
         tokio::spawn(async move {
             if let Ok(series) = komga_manager.list_series().await
@@ -81,7 +89,9 @@ impl App {
                     .iter()
                     .find(|v| v.url == path.to_string_lossy())
             {
+                debug!("Found series: {series:?}");
                 let Ok(books) = komga_manager.list_books(&series.id).await else {
+                    error!("Failed to list books for series ({})", path.display());
                     return;
                 };
 
