@@ -30,17 +30,17 @@ impl App {
         ])
         .areas(frame.area());
 
-        let [series_area, chapters_area, data_area] = if self.current_tab == Tab::SeriesList {
+        let [series_area, chapters_area, data_area] = if self.current_tab == Tab::ChaptersList {
             Layout::horizontal([
-                Constraint::Percentage(40),
                 Constraint::Percentage(20),
+                Constraint::Percentage(40),
                 Constraint::Fill(1),
             ])
             .areas(main_area)
         } else {
             Layout::horizontal([
-                Constraint::Percentage(20),
                 Constraint::Percentage(40),
+                Constraint::Percentage(20),
                 Constraint::Fill(1),
             ])
             .areas(main_area)

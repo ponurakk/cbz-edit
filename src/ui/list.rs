@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use ratatui::widgets::{ListItem, ListState, ScrollbarState};
+use tui_input::Input;
 
 /// Series from disk
 #[derive(Debug, Clone, Default)]
@@ -49,6 +50,60 @@ pub struct SeriesList {
 
     /// State of the scrollbar
     pub scroll_state: ScrollbarState,
+
+    /// Search text
+    pub search_text: Option<Input>,
+
+    /// Found series from search
+    pub found: (usize, Vec<usize>),
+}
+
+impl SeriesList {
+    pub fn search(&mut self) {
+        let Some(search_text) = &self.search_text else {
+            return;
+        };
+
+        let filtered_indices: Vec<(Series, usize)> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| {
+                p.name
+                    .to_lowercase()
+                    .contains(&search_text.value().to_lowercase())
+            })
+            .map(|(idx, s)| (s.clone(), idx))
+            .collect();
+
+        if let Some(selected_idx) = filtered_indices.first() {
+            self.state.select(Some(selected_idx.1));
+        } else {
+            self.state.select(None);
+        }
+
+        let mut found: Vec<usize> = filtered_indices.iter().map(|i| i.1).collect();
+        found.sort_unstable();
+
+        self.found = (0, found);
+    }
+
+    pub fn next_search(&mut self) {
+        if let Some(input) = &self.search_text
+            && input.value().is_empty()
+        {
+            return;
+        }
+
+        debug!("Search result: {:?}", self.found);
+        if self.found.0 >= self.found.1.len().saturating_sub(1) {
+            self.found.0 = 0;
+        } else {
+            self.found.0 += 1;
+        }
+
+        self.state.select(self.found.1.get(self.found.0).copied());
+    }
 }
 
 impl FromIterator<Series> for SeriesList {
@@ -63,6 +118,8 @@ impl FromIterator<Series> for SeriesList {
             items_state: items,
             state,
             scroll_state: ScrollbarState::default().content_length(len),
+            search_text: None,
+            found: (0, Vec::new()),
         }
     }
 }

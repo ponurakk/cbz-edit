@@ -102,7 +102,7 @@ impl App {
             .borders(Borders::NONE);
 
         block = if idx == active_index {
-            if self.input_mode == InputMode::Editing {
+            if self.input_mode == InputMode::Editing && self.current_tab == Tab::Metadata {
                 block.border_style(Style::default().fg(Color::Red))
             } else {
                 block.border_style(Style::default().fg(Color::Cyan))
@@ -131,7 +131,7 @@ impl App {
 
         let border_paragraph =
             Paragraph::new(bottom_border).style(Style::default().fg(if idx == active_index {
-                if self.input_mode == InputMode::Editing {
+                if self.input_mode == InputMode::Editing && self.current_tab == Tab::Metadata {
                     Color::Red
                 } else {
                     Color::Cyan
@@ -145,7 +145,10 @@ impl App {
 
         // Cursor positioning
         #[allow(clippy::cast_possible_truncation)]
-        if idx == active_index && self.input_mode == InputMode::Editing {
+        if idx == active_index
+            && self.input_mode == InputMode::Editing
+            && self.current_tab == Tab::Metadata
+        {
             let x = if input.cursor() >= (area.width - 2).into() {
                 area.x + area.width - 2
             } else {

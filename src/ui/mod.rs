@@ -12,7 +12,7 @@ use ratatui::{
 };
 use ratatui_image::picker::Picker;
 use tokio::sync::watch;
-use tui_input::backend::crossterm::EventHandler;
+use tui_input::{Input, backend::crossterm::EventHandler};
 
 use crate::{
     config::Config,
@@ -35,11 +35,12 @@ pub mod widgets;
 const TICK_RATE: Duration = Duration::from_millis(100);
 
 /// Current tab
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Tab {
     SeriesList,
     ChaptersList,
     Metadata,
+    Search,
 }
 
 /// Current input mode
@@ -167,6 +168,8 @@ impl App {
 
         if self.current_tab == Tab::Metadata {
             self.handle_key_metadata(key);
+        } else if self.current_tab == Tab::Search {
+            self.handle_key_search(key);
         } else {
             match key.code {
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -186,6 +189,13 @@ impl App {
                 KeyCode::Char('?') => self.toggle_help(),
                 KeyCode::Char('=' | '+') => self.image_manager.next(),
                 KeyCode::Char('-') => self.image_manager.prev(),
+                KeyCode::Char('/') => {
+                    self.set_tab(Tab::Search);
+                    self.input_mode = InputMode::Editing;
+                    if self.series_list.search_text.is_none() {
+                        self.series_list.search_text = Some(Input::new(String::new()));
+                    }
+                }
                 KeyCode::Esc => self.handle_esc_selection(),
                 _ => {}
             }
@@ -235,6 +245,27 @@ impl App {
                     && let Some(input) = self.comic_manager.comic.active_input_mut()
                 {
                     input.handle_event(&Event::Key(key));
+                }
+            }
+        }
+    }
+
+    fn handle_key_search(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Esc => {
+                self.set_tab(Tab::SeriesList);
+                self.input_mode = InputMode::Normal;
+                self.series_list.search_text = None;
+            }
+            KeyCode::Enter => {
+                self.series_list.next_search();
+            }
+            _ => {
+                if self.input_mode == InputMode::Editing
+                    && let Some(input) = &mut self.series_list.search_text
+                {
+                    input.handle_event(&Event::Key(key));
+                    self.series_list.search();
                 }
             }
         }

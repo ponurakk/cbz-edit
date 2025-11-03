@@ -112,7 +112,7 @@ impl App {
 
     /// Changes input to normal
     pub fn handle_esc_editing(&mut self) {
-        if self.input_mode == InputMode::Editing {
+        if self.input_mode == InputMode::Editing && self.current_tab == Tab::Metadata {
             self.input_mode = InputMode::Normal;
         } else {
             self.current_tab = Tab::ChaptersList;
@@ -125,7 +125,7 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => self.current_tab = Tab::ChaptersList,
             Tab::ChaptersList => self.current_tab = Tab::Metadata,
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -133,8 +133,12 @@ impl App {
         match self.current_tab {
             Tab::SeriesList => self.current_tab = Tab::ChaptersList,
             Tab::ChaptersList => self.current_tab = Tab::SeriesList,
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
+    }
+
+    pub fn set_tab(&mut self, tab: Tab) {
+        self.current_tab = tab;
     }
 
     /// Select the next item
@@ -151,7 +155,7 @@ impl App {
                 self.update_chapter_select(|series| series.chapters.state.select_next());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -169,7 +173,7 @@ impl App {
                 self.update_chapter_select(|series| series.chapters.state.select_previous());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -198,7 +202,7 @@ impl App {
                 });
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -228,7 +232,7 @@ impl App {
                 });
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -246,7 +250,7 @@ impl App {
                 self.update_chapter_select(|series| series.chapters.state.select_first());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
@@ -264,7 +268,7 @@ impl App {
                 self.update_chapter_select(|series| series.chapters.state.select_last());
                 self.update_chapter_scroll();
             }
-            Tab::Metadata => {}
+            Tab::Metadata | Tab::Search => {}
         }
     }
 
