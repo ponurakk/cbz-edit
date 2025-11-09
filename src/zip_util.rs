@@ -146,6 +146,7 @@ fn add_xml_comment(xml: &str, comment: &str) -> anyhow::Result<String> {
 
     let mut writer = Writer::new(Cursor::new(Vec::new()));
     writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?;
+    writer.write_event(Event::DocType(BytesText::new("xml")))?;
     writer.write_event(Event::Comment(BytesText::new(comment)))?;
 
     let mut buf = Vec::new();
