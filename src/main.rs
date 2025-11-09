@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
     let series = get_series_list(&config.manga_dir)?;
 
     let terminal = ratatui::init();
-    let app_result = App::new(series, &config)?.run(terminal);
+    let app_result = App::new(series, config)?.run(terminal);
     ratatui::restore();
     app_result
 }

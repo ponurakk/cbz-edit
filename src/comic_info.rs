@@ -19,9 +19,20 @@ impl FromStr for ComicInfoManga {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Yes" => Ok(Self::Yes),
-            "No" => Ok(Self::No),
-            "YesAndRightToLeft" => Ok(Self::YesAndRightToLeft),
+            "No" | "LEFT_TO_RIGHT" => Ok(Self::No),
+            "YesAndRightToLeft" | "RIGHT_TO_LEFT" => Ok(Self::YesAndRightToLeft),
             _ => Ok(Self::Unknown),
+        }
+    }
+}
+
+impl From<String> for ComicInfoManga {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "Yes" => Self::Yes,
+            "No" | "LEFT_TO_RIGHT" => Self::No,
+            "YesAndRightToLeft" | "RIGHT_TO_LEFT" => Self::YesAndRightToLeft,
+            _ => Self::Unknown,
         }
     }
 }

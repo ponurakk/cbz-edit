@@ -5,14 +5,18 @@ use serde::{Deserialize, Deserializer, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct KomgaSeriesMetadata {
     pub title: String,
-    pub summary: String,
-    pub publisher: String,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub summary: Option<String>,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub publisher: Option<String>,
     pub age_rating: Option<u32>,
     #[serde(deserialize_with = "empty_string_as_none")]
     pub language: Option<String>,
     pub genres: Vec<String>,
     pub tags: Vec<String>,
     pub total_book_count: Option<u32>,
+    #[serde(deserialize_with = "empty_string_as_none")]
+    pub reading_direction: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

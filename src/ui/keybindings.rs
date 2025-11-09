@@ -4,7 +4,7 @@ use crate::{
     chapter_manager::{
         save_chapter_info, save_series_info, update_chapter_numbering, update_volume_numbering,
     },
-    managers::comic_form::ComicFormState,
+    managers::comic_form::{ComicFormState, ComicInfoForm},
     ui::{App, InputMode, Tab, list::Series},
 };
 
@@ -67,38 +67,62 @@ impl App {
         });
     }
 
-    pub fn handle_ctrl_u(&self) {
+    pub fn handle_ctrl_u(&mut self) {
         let ComicFormState::Ready(comic) = &self.comic_manager.comic else {
             error!("Comic is not ready");
             return;
         };
+        let comic_info = comic.to_comic_info();
 
-        let path = self.get_current_series().path;
-        // TODO: Get this from config
-        let path = if path.ends_with("_oneshots") {
-            self.get_current_chapter().path
+        let series_path = self.get_current_series().path;
+        let chapter_path = self.get_current_chapter().path;
+        let series_path = if series_path.ends_with(&self.config.komga.oneshots_dir) {
+            chapter_path.clone()
         } else {
-            path
+            series_path
         };
+
+        let (comic_tx, comic_rx) = std::sync::mpsc::channel();
+        self.comic_manager.comic_rx = Some(comic_rx);
+        self.comic_manager.comic = ComicFormState::Loading;
 
         let komga_manager = self.komga_manager.clone();
         tokio::spawn(async move {
-            if let Ok(series) = komga_manager.list_series().await
-                && let Some(series) = series
-                    .content
-                    .iter()
-                    .find(|v| v.url == path.to_string_lossy())
-            {
-                debug!("Found series: {series:?}");
-                let Ok(books) = komga_manager.list_books(&series.id).await else {
-                    error!("Failed to list books for series ({})", path.display());
-                    return;
-                };
+            let Ok(series) = komga_manager.list_series().await else {
+                return error!("Failed to list series ({})", series_path.display());
+            };
 
-                info!("{books:#?}");
-            } else {
-                error!("Failed to find series ({})", path.display());
-            }
+            let Some(series) = series
+                .content
+                .iter()
+                .find(|v| v.url == series_path.to_string_lossy())
+            else {
+                return error!("Failed to find series ({})", series_path.display());
+            };
+
+            debug!("Found series: {series:?}");
+
+            let books = match komga_manager.list_books(&series.id).await {
+                Ok(books) => books,
+                Err(e) => {
+                    return error!(
+                        "Failed to list books for series ({}) with error: {e:?}",
+                        series_path.display(),
+                    );
+                }
+            };
+
+            let Some(book) = books
+                .content
+                .iter()
+                .find(|book| book.url == chapter_path.to_string_lossy())
+            else {
+                return error!("Failed to find book ({})", chapter_path.display());
+            };
+
+            let info_form = book.to_comic_info(series, &comic_info);
+            let form = ComicInfoForm::new(&info_form);
+            let _ = comic_tx.send(form);
         });
     }
 

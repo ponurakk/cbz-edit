@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 pub struct KomgaConfig {
     pub url: String,
     pub api_key: String,
+    pub oneshots_dir: String,
 }
 
 impl Default for KomgaConfig {
@@ -17,6 +18,7 @@ impl Default for KomgaConfig {
         Self {
             url: String::from("http://127.0.0.1:25600"),
             api_key: String::new(),
+            oneshots_dir: String::from("_oneshots"),
         }
     }
 }

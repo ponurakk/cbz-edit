@@ -88,17 +88,19 @@ pub struct App {
 
     /// Sender channel for status
     status_tx: watch::Sender<String>,
+
+    config: Config,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self::new(vec![], &Config::default()).expect("Failed to create app")
+        Self::new(vec![], Config::default()).expect("Failed to create app")
     }
 }
 
 impl App {
     /// Create a new application
-    pub fn new(series_list: Vec<Series>, config: &Config) -> anyhow::Result<Self> {
+    pub fn new(series_list: Vec<Series>, config: Config) -> anyhow::Result<Self> {
         let picker = Picker::from_query_stdio()?;
 
         let mut fields_state = ListState::default();
@@ -119,6 +121,7 @@ impl App {
             pending_selection: None,
             status_rx,
             status_tx,
+            config,
         })
     }
 
