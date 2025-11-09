@@ -30,21 +30,22 @@ impl App {
         ])
         .areas(frame.area());
 
-        let [series_area, chapters_area, data_area] = if self.current_tab == Tab::ChaptersList {
-            Layout::horizontal([
-                Constraint::Percentage(20),
-                Constraint::Percentage(40),
-                Constraint::Fill(1),
-            ])
-            .areas(main_area)
-        } else {
-            Layout::horizontal([
-                Constraint::Percentage(40),
-                Constraint::Percentage(20),
-                Constraint::Fill(1),
-            ])
-            .areas(main_area)
-        };
+        let [series_area, chapters_area, data_area] =
+            if self.current_tab == Tab::ChaptersList || self.current_tab == Tab::Metadata {
+                Layout::horizontal([
+                    Constraint::Percentage(20),
+                    Constraint::Percentage(40),
+                    Constraint::Fill(1),
+                ])
+                .areas(main_area)
+            } else {
+                Layout::horizontal([
+                    Constraint::Percentage(40),
+                    Constraint::Percentage(20),
+                    Constraint::Fill(1),
+                ])
+                .areas(main_area)
+            };
 
         let [data_info_area, data_input_area] =
             Layout::vertical([Constraint::Percentage(45), Constraint::Fill(1)]).areas(data_area);
