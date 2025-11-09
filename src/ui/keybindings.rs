@@ -99,7 +99,6 @@ impl App {
             else {
                 return error!("Failed to find series ({})", series_path.display());
             };
-
             debug!("Found series: {series:?}");
 
             let books = match komga_manager.list_books(&series.id).await {
@@ -123,6 +122,43 @@ impl App {
             let info_form = book.to_comic_info(series, &comic_info);
             let form = ComicInfoForm::new(&info_form);
             let _ = comic_tx.send(form);
+        });
+    }
+
+    pub fn handle_ctrl_a(&self) {
+        let ComicFormState::Ready(_) = &self.comic_manager.comic else {
+            error!("Comic is not ready");
+            return;
+        };
+
+        let series_path = self.get_current_series().path;
+        let series_path = if series_path.ends_with(&self.config.komga.oneshots_dir) {
+            self.get_current_chapter().path
+        } else {
+            series_path
+        };
+
+        let komga_manager = self.komga_manager.clone();
+        tokio::spawn(async move {
+            let Ok(series) = komga_manager.list_series().await else {
+                return error!("Failed to list series ({})", series_path.display());
+            };
+
+            let Some(series) = series
+                .content
+                .iter()
+                .find(|v| v.url == series_path.to_string_lossy())
+            else {
+                return error!("Failed to find series ({})", series_path.display());
+            };
+            debug!("Found series: {series:?}");
+
+            if let Err(e) = komga_manager.analyze_series(&series.id).await {
+                error!(
+                    "Failed to analyze series ({}) with error: {e}",
+                    series_path.display()
+                );
+            }
         });
     }
 
