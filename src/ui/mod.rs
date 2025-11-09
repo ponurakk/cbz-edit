@@ -237,8 +237,10 @@ impl App {
             KeyCode::Char('h') if self.input_mode == InputMode::Normal => {
                 self.comic_manager.comic.prev_side();
             }
-            KeyCode::Char('=' | '+') => self.image_manager.next(),
-            KeyCode::Char('-') => self.image_manager.prev(),
+            KeyCode::Char('=' | '+') if self.input_mode == InputMode::Normal => {
+                self.image_manager.next()
+            }
+            KeyCode::Char('-') if self.input_mode == InputMode::Normal => self.image_manager.prev(),
             KeyCode::Esc => self.handle_esc_editing(),
             _ => {
                 if self.input_mode == InputMode::Editing
