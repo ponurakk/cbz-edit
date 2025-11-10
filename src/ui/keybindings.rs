@@ -139,6 +139,7 @@ impl App {
         };
 
         let komga_manager = self.komga_manager.clone();
+        let status_tx = self.status_tx.clone();
         tokio::spawn(async move {
             let Ok(series) = komga_manager.list_series().await else {
                 return error!("Failed to list series ({})", series_path.display());
@@ -159,6 +160,49 @@ impl App {
                     series_path.display()
                 );
             }
+
+            let _ = status_tx.send(format!("Sent analyze request for series ({})", series.name));
+        });
+    }
+
+    pub fn handle_ctrl_q(&self) {
+        let ComicFormState::Ready(_) = &self.comic_manager.comic else {
+            error!("Comic is not ready");
+            return;
+        };
+
+        let series_path = self.get_current_series().path;
+        let series_path = if series_path.ends_with(&self.config.komga.oneshots_dir) {
+            self.get_current_chapter().path
+        } else {
+            series_path
+        };
+
+        let komga_manager = self.komga_manager.clone();
+        let komf_manager = self.komf_manager.clone();
+        let status_tx = self.status_tx.clone();
+        tokio::spawn(async move {
+            let Ok(series) = komga_manager.list_series().await else {
+                return error!("Failed to list series ({})", series_path.display());
+            };
+
+            let Some(series) = series
+                .content
+                .iter()
+                .find(|v| v.url == series_path.to_string_lossy())
+            else {
+                return error!("Failed to find series ({})", series_path.display());
+            };
+            debug!("Found series: {series:?}");
+
+            if let Err(e) = komf_manager.identify(&series.library_id, &series.id).await {
+                error!(
+                    "Failed to identify series ({}) with error: {e}",
+                    series_path.display()
+                );
+            }
+
+            let _ = status_tx.send(format!("Identified series ({})", series_path.display()));
         });
     }
 

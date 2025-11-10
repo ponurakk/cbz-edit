@@ -19,6 +19,7 @@ use crate::{
     managers::{
         comic_form::{ComicFormState, ComicInfoForm, ComicInfoManager},
         image::{ImageManager, ImagesState},
+        komf::KomfManager,
         komga::KomgaManager,
     },
     ui::list::{Chapter, Series, SeriesList},
@@ -68,6 +69,9 @@ pub struct App {
     /// Komga manager
     komga_manager: KomgaManager,
 
+    /// Komf manager
+    komf_manager: KomfManager,
+
     /// Comic form state
     comic_manager: ComicInfoManager,
 
@@ -114,6 +118,7 @@ impl App {
             series_list: SeriesList::from_iter(series_list),
             image_manager: ImageManager::new(picker),
             komga_manager: KomgaManager::new(&config.komga.url, &config.komga.api_key)?,
+            komf_manager: KomfManager::new(&config.komf.url)?,
             comic_manager: ComicInfoManager::new(),
             show_help: false,
             input_mode: InputMode::Normal,
@@ -224,6 +229,9 @@ impl App {
             }
             KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.handle_ctrl_a();
+            }
+            KeyCode::Char('q') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.handle_ctrl_q();
             }
             KeyCode::Enter if self.input_mode == InputMode::Normal => {
                 self.input_mode = InputMode::Editing;

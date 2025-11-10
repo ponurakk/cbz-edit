@@ -7,9 +7,25 @@ use anyhow::bail;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct KomfConfig {
+    #[serde(default)]
+    pub url: String,
+}
+
+impl Default for KomfConfig {
+    fn default() -> Self {
+        Self {
+            url: String::from("http://127.0.0.1:8085"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct KomgaConfig {
+    #[serde(default)]
     pub url: String,
     pub api_key: String,
+    #[serde(default)]
     pub oneshots_dir: String,
 }
 
@@ -27,6 +43,8 @@ impl Default for KomgaConfig {
 pub struct Config {
     pub manga_dir: String,
     pub komga: KomgaConfig,
+    #[serde(default)]
+    pub komf: KomfConfig,
 }
 
 impl Default for Config {
@@ -39,6 +57,7 @@ impl Default for Config {
         Self {
             manga_dir,
             komga: KomgaConfig::default(),
+            komf: KomfConfig::default(),
         }
     }
 }
