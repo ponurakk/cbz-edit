@@ -39,18 +39,34 @@ impl<'de> Deserialize<'de> for KomgaBooksMetadata {
     {
         let raw = RawBook::deserialize(deserializer)?;
 
-        let mut writer = None;
-        let mut penciller = None;
-        let mut translator = None;
+        let mut writer = Vec::new();
+        let mut penciller = Vec::new();
+        let mut translator = Vec::new();
 
         for author in raw.authors {
             match author.role.as_str() {
-                "writer" if writer.is_none() => writer = Some(author.name),
-                "penciller" if penciller.is_none() => penciller = Some(author.name),
-                "translator" if translator.is_none() => translator = Some(author.name),
+                "writer" => writer.push(author.name),
+                "penciller" => penciller.push(author.name),
+                "translator" => translator.push(author.name),
                 _ => {}
             }
         }
+
+        let writer = if writer.is_empty() {
+            None
+        } else {
+            Some(writer.join(","))
+        };
+        let penciller = if penciller.is_empty() {
+            None
+        } else {
+            Some(penciller.join(","))
+        };
+        let translator = if translator.is_empty() {
+            None
+        } else {
+            Some(translator.join(","))
+        };
 
         let (year, month, day) = if let Some(release_date) = raw.release_date {
             let mut parts = release_date.splitn(3, '-');
