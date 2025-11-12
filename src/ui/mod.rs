@@ -193,6 +193,7 @@ impl App {
                 KeyCode::Char('G') | KeyCode::End => self.select_last(),
                 KeyCode::Char('l') | KeyCode::Enter => self.next_tab(),
                 KeyCode::Char('h') => self.previous_tab(),
+                KeyCode::Char('R') => self.handle_refresh(),
                 KeyCode::Char(' ') if self.current_tab == Tab::ChaptersList => self.toggle_select(),
                 KeyCode::Char('?') => self.toggle_help(),
                 KeyCode::Char('=' | '+') => self.image_manager.next(),

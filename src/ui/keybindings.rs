@@ -5,7 +5,10 @@ use crate::{
         save_chapter_info, save_series_info, update_chapter_numbering, update_volume_numbering,
     },
     managers::comic_form::{ComicFormState, ComicInfoForm},
-    ui::{App, InputMode, Tab, list::Series},
+    ui::{
+        App, InputMode, Tab,
+        list::{ChapterList, Series},
+    },
 };
 
 /// Handles keybindings in metadata tab
@@ -86,6 +89,7 @@ impl App {
         self.comic_manager.comic_rx = Some(comic_rx);
         self.comic_manager.comic = ComicFormState::Loading;
 
+        let status_tx = self.status_tx.clone();
         let komga_manager = self.komga_manager.clone();
         tokio::spawn(async move {
             let Ok(series) = komga_manager.list_series().await else {
@@ -116,6 +120,7 @@ impl App {
                 .iter()
                 .find(|book| book.url == chapter_path.to_string_lossy())
             else {
+                let _ = status_tx.send(format!("Failed to find book ({})", chapter_path.display()));
                 return error!("Failed to find book ({})", chapter_path.display());
             };
 
@@ -220,6 +225,34 @@ impl App {
             self.input_mode = InputMode::Normal;
         } else {
             self.current_tab = Tab::ChaptersList;
+        }
+    }
+
+    /// Refreshes the chapter list
+    pub fn handle_refresh(&mut self) {
+        let series_path = self.get_current_series().path;
+
+        if let Some(series) = self
+            .series_list
+            .items_state
+            .iter_mut()
+            .find(|v| v.path == series_path)
+        {
+            let Ok(mut new_chapters) = crate::data::get_cbz_list(&series_path) else {
+                error!(
+                    "Failed to get cbz list for series ({})",
+                    series_path.display()
+                );
+                return;
+            };
+
+            new_chapters.sort();
+            series.chapters = ChapterList::from_iter(new_chapters);
+            self.series_list.items = self.series_list.items_state.clone();
+
+            let _ = self
+                .status_tx
+                .send("Refreshed chapters list in series".to_string());
         }
     }
 }
