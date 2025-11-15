@@ -47,16 +47,19 @@ impl App {
             .borders(Borders::ALL)
             .border_set(symbols::border::ROUNDED);
 
-        let mut counts: HashMap<Option<u32>, usize> = HashMap::new();
+        let mut counts: HashMap<(Option<u32>, Option<u32>), usize> = HashMap::new();
 
         if series.name != self.config.komga.oneshots_dir {
             for c in &series.chapters.items {
-                let key = c.chapter.map(f32::to_bits);
+                let chapter_bits = c.chapter.map(f32::to_bits);
+                let volume_key = c.volume;
+
+                let key = (volume_key, chapter_bits);
                 *counts.entry(key).or_insert(0) += 1;
             }
         }
 
-        let duplicates: HashSet<Option<u32>> = counts
+        let duplicates: HashSet<(Option<u32>, Option<u32>)> = counts
             .into_iter()
             .filter(|(_, c)| *c > 1)
             .map(|(k, _)| k)
@@ -79,7 +82,7 @@ impl App {
                     );
                 }
 
-                let key = chapter.chapter.map(f32::to_bits);
+                let key = (chapter.volume, chapter.chapter.map(f32::to_bits));
                 if duplicates.contains(&key) {
                     item = item.style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
                 }
