@@ -11,16 +11,18 @@ pub enum ComicInfoManga {
     Yes,
     No,
     YesAndRightToLeft,
+    Webtoon,
 }
 
 impl FromStr for ComicInfoManga {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Yes" => Ok(Self::Yes),
-            "No" | "LEFT_TO_RIGHT" => Ok(Self::No),
-            "YesAndRightToLeft" | "RIGHT_TO_LEFT" => Ok(Self::YesAndRightToLeft),
+        match s.to_lowercase().as_str() {
+            "yes" => Ok(Self::Yes),
+            "no" | "left_to_right" => Ok(Self::No),
+            "yesandrighttoleft" | "right_to_left" => Ok(Self::YesAndRightToLeft),
+            "webtoon" => Ok(Self::Webtoon),
             _ => Ok(Self::Unknown),
         }
     }
@@ -28,10 +30,11 @@ impl FromStr for ComicInfoManga {
 
 impl From<String> for ComicInfoManga {
     fn from(value: String) -> Self {
-        match value.as_str() {
-            "Yes" => Self::Yes,
-            "No" | "LEFT_TO_RIGHT" => Self::No,
-            "YesAndRightToLeft" | "RIGHT_TO_LEFT" => Self::YesAndRightToLeft,
+        match value.to_lowercase().as_str() {
+            "yes" => Self::Yes,
+            "no" | "left_to_right" => Self::No,
+            "yesandrighttoleft" | "right_to_left" => Self::YesAndRightToLeft,
+            "webtoon" => Self::Webtoon,
             _ => Self::Unknown,
         }
     }
@@ -43,6 +46,7 @@ impl Display for ComicInfoManga {
             Self::Yes => write!(f, "Yes"),
             Self::No => write!(f, "No"),
             Self::YesAndRightToLeft => write!(f, "YesAndRightToLeft"),
+            Self::Webtoon => write!(f, "Webtoon"),
             Self::Unknown => write!(f, "Unknown"),
         }
     }
@@ -59,6 +63,7 @@ impl<'de> Deserialize<'de> for ComicInfoManga {
             "Yes" => Ok(Self::Yes),
             "No" => Ok(Self::No),
             "YesAndRightToLeft" => Ok(Self::YesAndRightToLeft),
+            "Webtoon" => Ok(Self::Webtoon),
             _ => Ok(Self::Unknown),
         }
     }
