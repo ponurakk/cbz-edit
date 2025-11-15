@@ -8,8 +8,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KomfConfig {
-    #[serde(default)]
+    #[serde(default = "komf_url")]
     pub url: String,
+}
+
+fn komf_url() -> String {
+    String::from("http://127.0.0.1:8085")
 }
 
 impl Default for KomfConfig {
@@ -22,11 +26,19 @@ impl Default for KomfConfig {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KomgaConfig {
-    #[serde(default)]
+    #[serde(default = "komga_url")]
     pub url: String,
     pub api_key: String,
-    #[serde(default)]
+    #[serde(default = "oneshots_dir")]
     pub oneshots_dir: String,
+}
+
+fn komga_url() -> String {
+    String::from("http://127.0.0.1:25600")
+}
+
+fn oneshots_dir() -> String {
+    String::from("_oneshots")
 }
 
 impl Default for KomgaConfig {
