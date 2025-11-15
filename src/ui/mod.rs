@@ -253,7 +253,7 @@ impl App {
                 self.comic_manager.comic.prev_side();
             }
             KeyCode::Char('=' | '+') if self.input_mode == InputMode::Normal => {
-                self.image_manager.next()
+                self.image_manager.next();
             }
             KeyCode::Char('-') if self.input_mode == InputMode::Normal => self.image_manager.prev(),
             KeyCode::Esc => self.handle_esc_editing(),
@@ -273,6 +273,9 @@ impl App {
                 self.set_tab(Tab::SeriesList);
                 self.input_mode = InputMode::Normal;
                 self.series_list.search_text = None;
+            }
+            KeyCode::Enter if key.modifiers.contains(KeyModifiers::ALT) => {
+                self.series_list.prev_search();
             }
             KeyCode::Enter => {
                 self.series_list.next_search();

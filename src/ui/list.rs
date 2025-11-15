@@ -104,6 +104,23 @@ impl SeriesList {
 
         self.state.select(self.found.1.get(self.found.0).copied());
     }
+
+    pub fn prev_search(&mut self) {
+        if let Some(input) = &self.search_text
+            && input.value().is_empty()
+        {
+            return;
+        }
+
+        debug!("Search result: {:?}", self.found);
+        if self.found.0 == 0 {
+            self.found.0 = self.found.1.len().saturating_sub(1);
+        } else {
+            self.found.0 = self.found.0.saturating_sub(1);
+        }
+
+        self.state.select(self.found.1.get(self.found.0).copied());
+    }
 }
 
 impl FromIterator<Series> for SeriesList {
@@ -224,7 +241,6 @@ impl ChapterList {
         if let Some(index) = self.state.selected()
             && !self.selected.insert(index)
         {
-            // Already selected → unselect it
             self.selected.remove(&index);
         }
     }

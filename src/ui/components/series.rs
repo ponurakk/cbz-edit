@@ -24,7 +24,13 @@ impl App {
         if self.current_tab == Tab::SeriesList {
             title = title.style(SELECTED_YELLOW).underlined();
         }
-        let title = Line::from(vec![Span::raw(" "), title, Span::raw(" ")]).left_aligned();
+        let title = Line::from(vec![
+            Span::raw(" "),
+            title,
+            Span::raw(" "),
+            Span::raw(format!("({})", self.series_list.items_state.len())),
+        ])
+        .left_aligned();
 
         let block = Block::new()
             .title(title)

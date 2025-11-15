@@ -11,11 +11,21 @@ use crate::ui::{App, Tab, app::SELECTED_YELLOW};
 
 impl App {
     pub fn render_search(&mut self, area: Rect, f: &mut Frame) {
-        let mut title = Span::raw("Series");
+        let mut title = Span::raw("Search");
         if self.current_tab == Tab::Search {
             title = title.style(SELECTED_YELLOW).underlined();
         }
-        let title = Line::from(vec![Span::raw(" "), title, Span::raw(" ")]).left_aligned();
+        let title = Line::from(vec![
+            Span::raw(" "),
+            title,
+            Span::raw(" "),
+            Span::raw(format!(
+                "({}/{})",
+                self.series_list.found.0 + 1,
+                self.series_list.found.1.len()
+            )),
+        ])
+        .left_aligned();
 
         let block = Block::default()
             .title(title)
