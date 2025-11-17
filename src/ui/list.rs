@@ -196,7 +196,10 @@ impl Ord for Chapter {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let c1 = self.chapter.unwrap_or(0.0);
         let c2 = other.chapter.unwrap_or(0.0);
-        c1.partial_cmp(&c2).unwrap_or(std::cmp::Ordering::Equal)
+        match c1.partial_cmp(&c2).unwrap_or(std::cmp::Ordering::Equal) {
+            std::cmp::Ordering::Equal => self.path.cmp(&other.path),
+            non_eq => non_eq,
+        }
     }
 }
 
