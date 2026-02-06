@@ -17,6 +17,7 @@ pub struct ImageManager {
     pub images_rx: Option<mpsc::Receiver<Vec<StatefulProtocol>>>,
     pub current: usize,
     pub spinner: SpinnerState,
+    pub decode_task: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl ImageManager {
@@ -28,6 +29,7 @@ impl ImageManager {
             images_rx: None,
             current: 0,
             spinner: SpinnerState::default(),
+            decode_task: None,
         }
     }
 
@@ -44,6 +46,10 @@ impl ImageManager {
     }
 
     pub fn replace_images(&mut self, images: Vec<Vec<u8>>) {
+        if let Some(handle) = self.decode_task.take() {
+            handle.abort();
+        }
+
         let (tx, rx) = mpsc::channel();
         self.images_rx = Some(rx);
         self.images = ImagesState::Loading;
@@ -51,9 +57,10 @@ impl ImageManager {
 
         let picker = self.picker.clone();
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut protocols: Vec<StatefulProtocol> = Vec::new();
-            for img_bytes in images {
+
+            for img_bytes in &images {
                 let decoded = (|| -> Result<_, image::ImageError> {
                     let reader = ImageReader::new(Cursor::new(img_bytes)).with_guessed_format()?;
                     reader.decode()
@@ -66,10 +73,15 @@ impl ImageManager {
                     }
                     Err(err) => error!("Image decode failed: {err}"),
                 }
+
+                tokio::task::yield_now().await;
             }
 
+            protocols.shrink_to_fit();
             let _ = tx.send(protocols);
         });
+
+        self.decode_task = Some(handle);
     }
 
     pub fn poll_image_updates(&mut self) {
