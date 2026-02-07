@@ -207,9 +207,8 @@ pub fn volume_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::
 
 /// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)
 pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<u8>>)> {
-    let input_zip = fs::read(path)?;
-    let reader = Cursor::new(input_zip);
-    let mut archive = ZipArchive::new(reader)?;
+    let input_zip = fs::File::open(path)?;
+    let mut archive = ZipArchive::new(input_zip)?;
 
     let comic_info = match archive.by_name("ComicInfo.xml") {
         Ok(mut file) => {
@@ -236,7 +235,8 @@ pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<
                 .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
         };
 
-        if (is_ext("jpg") || is_ext("jpeg") || is_ext("png") || is_ext("webp"))
+        if images.len() < 10
+            && (is_ext("jpg") || is_ext("jpeg") || is_ext("png") || is_ext("webp"))
             && let Some(number_str) = name.split('.').next()
             && let Ok(number) = number_str.parse::<usize>()
         {
@@ -246,7 +246,7 @@ pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<
         }
     }
 
-    images.sort_by_key(|(number, _)| *number);
+    images.sort_unstable_by_key(|(n, _)| *n);
     let images: Vec<Vec<u8>> = images.into_iter().map(|(_, buf)| buf).collect();
 
     Ok((comic_info, images))
