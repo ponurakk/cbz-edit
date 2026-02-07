@@ -142,7 +142,7 @@ where
 /// Inserts an XML comment at the top of an existing XML string using quick-xml.
 fn add_xml_comment(xml: &str, comment: &str) -> anyhow::Result<String> {
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    reader.config_mut().trim_text(false);
 
     let mut writer = Writer::new(Cursor::new(Vec::new()));
     writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("utf-8"), None)))?;
