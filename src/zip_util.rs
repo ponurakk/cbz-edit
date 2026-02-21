@@ -206,7 +206,7 @@ pub fn volume_comic_info(path: &PathBuf, new_comic_info: &ComicInfo) -> anyhow::
 }
 
 /// Get the `ComicInfo.xml` from a flat ZIP (no subdirectories)
-pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<u8>>)> {
+pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<u8>>, u32)> {
     let input_zip = fs::File::open(path)?;
     let mut archive = ZipArchive::new(input_zip)?;
 
@@ -220,6 +220,7 @@ pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<
     };
 
     let mut images: Vec<(usize, Vec<u8>)> = Vec::new();
+    let mut images_count: u32 = 0;
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
@@ -235,19 +236,22 @@ pub fn get_comic_from_zip(path: &PathBuf) -> anyhow::Result<(ComicInfo, Vec<Vec<
                 .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
         };
 
-        if images.len() < 10
-            && (is_ext("jpg") || is_ext("jpeg") || is_ext("png") || is_ext("webp"))
+        if (is_ext("jpg") || is_ext("jpeg") || is_ext("png") || is_ext("webp"))
             && let Some(number_str) = name.split('.').next()
             && let Ok(number) = number_str.parse::<usize>()
         {
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)?;
-            images.push((number, buffer));
+            images_count += 1;
+
+            if images.len() < 10 {
+                let mut buffer = Vec::new();
+                file.read_to_end(&mut buffer)?;
+                images.push((number, buffer));
+            }
         }
     }
 
     images.sort_unstable_by_key(|(n, _)| *n);
     let images: Vec<Vec<u8>> = images.into_iter().map(|(_, buf)| buf).collect();
 
-    Ok((comic_info, images))
+    Ok((comic_info, images, images_count))
 }

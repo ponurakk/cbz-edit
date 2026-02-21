@@ -308,8 +308,9 @@ impl App {
 
             #[allow(clippy::cast_possible_truncation)]
             tokio::spawn(async move {
-                let (mut info, images) = get_comic_from_zip(&path).unwrap_or_default();
-                info.page_count = Some(images.len() as u32);
+                let (mut info, images, images_count) =
+                    get_comic_from_zip(&path).unwrap_or_default();
+                info.page_count = Some(images_count);
                 let form = ComicInfoForm::new(&info);
                 let _ = comic_tx.send(form);
                 let _ = images_tx.send(images);
